@@ -158,34 +158,34 @@ Here’s an example of what the extracted result might look like:
   "pages": 1,
   "data": {
     "accountNumber": "100002345",
-    "openingBalance": $3200,
+    "openingBalance": 3200,
     "transactions": [
         {
         "date": "2021-05-12",
         "creditAmount": null,
-        "debitAmount": $100,
+        "debitAmount": 100,
         "description": "transfer to Tom" 
       },
       {
         "date": "2021-05-12",
-        "creditAmount": $50,
+        "creditAmount": 50,
         "debitAmount": null,
         "description": "For lunch the other day"
       },
       {
         "date": "2021-05-13",
-        "creditAmount": $20,
+        "creditAmount": 20,
         "debitAmount": null,
         "description": "Refund for voucher"
       },
       {
         "date": "2021-05-13",
         "creditAmount": null,
-        "debitAmount": $750,
+        "debitAmount": 750,
         "description": "May's rent"
       }
     ],
-    "closingBalance": $2420
+    "closingBalance": 2420
   },
   "fileName": "bank_statement.pdf",
 }
