@@ -11,9 +11,9 @@ export const convertFile = async (filePath) => {
     const { pages, fileName } = result;
     const totalPages = pages.length;
 
-    const uploadedFilePath = await generateMarkdownDocument(pages, fileName);
+    const markdown = await generateMarkdownDocument(pages);
 
-    return { uploadedFilePath, totalPages, fileName };
+    return { markdown, totalPages, fileName };
   } catch (error) {
     console.error('Error running documind core:', error);
   }
