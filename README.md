@@ -2,7 +2,7 @@
 
 **`Documind`** is an advanced document processing tool that leverages AI to extract structured data from PDFs. It is built to handle PDF conversions, extract relevant information, and format results as specified by customizable schemas.
 
-This repo was built on top of Xerox - https://github.com/getomni-ai/zerox. The MIT license from Xerox is included in the core folder and is also mentioned in the root license file.
+This repo was built on top of Zerox - https://github.com/getomni-ai/zerox. The MIT license from Xerox is included in the core folder and is also mentioned in the root license file.
 
 ## **Features**
 
@@ -189,7 +189,7 @@ Here’s an example of what the extracted result might look like:
     ],
     "closingBalance": 2420
   },
-  "fileName": "bank_statement.pdf",
+  "fileName": "bank_statement.pdf"
 }
 
 ```
