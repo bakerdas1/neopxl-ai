@@ -2,7 +2,7 @@
 
 **`Documind`** is an advanced document processing tool that leverages AI to extract structured data from PDFs. It is built to handle PDF conversions, extract relevant information, and format results as specified by customizable schemas.
 
-This repo was built on top of Zerox - https://github.com/getomni-ai/zerox. The MIT license from Xerox is included in the core folder and is also mentioned in the root license file.
+This repo was built on top of Zerox - https://github.com/getomni-ai/zerox. The MIT license from Zerox is included in the core folder and is also mentioned in the root license file.
 
 ## **Features**
 
@@ -53,16 +53,12 @@ npm install documind
 
 ### **Environment Setup**
 
-**`documind`** requires an **`.env`** file to store sensitive information like API keys and Supabase configurations.
+**`documind`** requires an **`.env`** file to store sensitive information like your OpenAI API key.
 
 Create an **`.env`** file in your project directory and add the following:
 
 ```bash
 OPENAI_API_KEY=your_openai_api_key
-SUPABASE_URL=your_supabase_url
-SUPABASE_KEY=your_supabase_key
-SUPABASE_BUCKET=your_supabase_bucket_name
-
 ```
 
 ## **Usage**
