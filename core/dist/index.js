@@ -28,7 +28,7 @@ const documind = async ({ cleanup = true, concurrency = 10, filePath, llmParams 
     }
     // Ensure temp directory exists + create temp folder
     const rand = Math.floor(1000 + Math.random() * 9000).toString();
-    const tempDirectory = path_1.default.join(tempDir || os_1.default.tmpdir(), `documind-temp-${rand}`);
+    const tempDirectory = path_1.default.join(tempDir || os_1.default.tmpdir(), `documind-file-${rand}`);
     await fs_extra_1.default.ensureDir(tempDirectory);
     // Download the PDF. Get file name.
     const { extension, localPath } = await (0, utils_1.downloadFile)({
@@ -175,4 +175,3 @@ const documind = async ({ cleanup = true, concurrency = 10, filePath, llmParams 
     };
 };
 exports.documind = documind;
-module.exports = { documind: exports.documind };

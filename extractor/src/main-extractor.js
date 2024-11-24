@@ -6,15 +6,26 @@ import { convertFile } from './converter.js';
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export const extractData = async (pdfFilePath, schemaDefinition) => {
+  
+  const prompt = `
+    You are an expert in structured data extraction. Your task is to extract information from unstructured content and transform it into the specified structure. Follow these rules strictly:
+
+1. Handle Missing or Undetermined Data:
+   - If any field's information is missing, unknown, or cannot be determined, return its value as null.
+   - **Do not use substitutes such as "unknown," "missing," or any other placeholder for missing or unknown data. The value **must** always be explicitly null.
+`;
+
   try {
     const { markdown, totalPages, fileName } = await convertFile(pdfFilePath); 
+    
+    //console.log(markdown);
 
     const dynamicZodSchema = convertToZodSchema(schemaDefinition);
 
     const completion = await openai.beta.chat.completions.parse({
       model: "gpt-4o-2024-08-06",
       messages: [
-        { role: "system", content: "Extract the event information." },
+        { role: "system", content: prompt },
         {
           role: "user",
           content: markdown, 
