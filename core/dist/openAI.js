@@ -8,7 +8,7 @@ const utils_1 = require("./utils");
 const axios_1 = __importDefault(require("axios"));
 const getCompletion = async ({ apiKey, imagePath, llmParams, maintainFormat, model, priorPage, }) => {
     const systemPrompt = `
-    Convert the following PDF page to markdown.
+    Convert the following document page to markdown.
     Return only the markdown with no explanation text. Do not include deliminators like '''markdown.
     You must include all information on the page. Do not exclude headers, footers, or subtext.
   `;

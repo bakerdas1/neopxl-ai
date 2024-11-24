@@ -198,6 +198,40 @@ Here’s an example of what the extracted result might look like:
 
 ```
 
+### **Templates**
+
+Documind comes with built-in templates for extracting data from popular document types like invoices, bank statements, and more. These templates make it easier to get started without defining your own schema.
+
+**List available templates**
+
+You can list all available templates using the `templates.list` function.
+
+```javascript
+import { templates } from 'documind';
+
+const templates = templates.list();
+console.log(templates); // Logs all available template names
+```
+**Use a template**
+
+To use a template, simply pass its name to the `extract` function along with the file you want to extract data from. Here's an example:
+
+```javascript
+import { extract } from 'documind';
+
+const runExtraction = async () => {
+  const result = await extract({
+    file: 'https://bank_statement.pdf',
+    template: 'bank_statement'
+  });
+
+  console.log("Extracted Data:", result);
+};
+
+runExtraction();
+```
+Read the [templates documentation](https://docs.documind.xyz/templates/overview) for more details on templates and how to contribute yours.
+
 ## **Contributing**
 
 Contributions are welcome! Please submit a pull request with any improvements or features.
