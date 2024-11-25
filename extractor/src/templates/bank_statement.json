@@ -25,11 +25,6 @@
       "description": "The account number of the account holder." 
     },
     {
-      "name": "accountNumber",
-      "type": "string",
-      "description": "The account number of the account holder." 
-    },
-    {
       "name": "moneyIn",
       "type": "number",
       "description": "The total amount of money that went in to the bank statement." 
