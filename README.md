@@ -1,13 +1,5 @@
 # Documind
 
-<a href="https://news.ycombinator.com/item?id=42171311">
-  <img
-    style="width: 250px; height: 54px;" width="250" height="54"
-    alt="Featured on Hacker News"
-    src="https://hackernews-badge.vercel.app/api?id=42171311"
-  />
-</a>
-
 **`Documind`** is an advanced document processing tool that leverages AI to extract structured data from PDFs. It is built to handle PDF conversions, extract relevant information, and format results as specified by customizable schemas.
 
 This repo was built on top of Zerox - https://github.com/getomni-ai/zerox. The MIT license from Zerox is included in the core folder and is also mentioned in the root license file.
