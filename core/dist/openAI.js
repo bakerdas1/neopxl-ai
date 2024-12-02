@@ -7,6 +7,22 @@ exports.getCompletion = void 0;
 const utils_1 = require("./utils");
 const axios_1 = __importDefault(require("axios"));
 const getCompletion = async ({ apiKey, imagePath, llmParams, maintainFormat, model, priorPage, }) => {
+    const validModelsForCustomBaseUrl = [
+        "llava",
+        "llama3.2-vision",
+    ];
+    const validModelsForOpenAi = ["gpt-4o", "gpt-4o-mini"];
+    const baseUrl = process.env.BASE_URL || "https://api.openai.com/v1";
+    if (baseUrl !== "https://api.openai.com/v1") {
+        if (!validModelsForCustomBaseUrl.includes(model)) {
+            throw new Error(`Invalid model "${model}" for custom base URL. Valid options are: ${validModelsForCustomBaseUrl.join(", ")}.`);
+        }
+    }
+    else {
+        if (!validModelsForOpenAi.includes(model)) {
+            throw new Error(`Invalid model "${model}" for OpenAI. Valid options are: ${validModelsForOpenAi.join(", ")}.`);
+        }
+    }
     const systemPrompt = `
     Convert the following document page to markdown.
     Return only the markdown with no explanation text. Do not include deliminators like '''markdown.
@@ -34,7 +50,7 @@ const getCompletion = async ({ apiKey, imagePath, llmParams, maintainFormat, mod
         ],
     });
     try {
-        const response = await axios_1.default.post("https://api.openai.com/v1/chat/completions", {
+        const response = await axios_1.default.post(`${baseUrl}/chat/completions`, {
             messages,
             model,
             ...(0, utils_1.convertKeysToSnakeCase)(llmParams ?? null),

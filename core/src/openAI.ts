@@ -10,6 +10,28 @@ export const getCompletion = async ({
   model,
   priorPage,
 }: CompletionArgs): Promise<CompletionResponse> => {
+
+  const validModelsForCustomBaseUrl = [
+    "llava",
+    "llama3.2-vision",
+  ];
+  const validModelsForOpenAi = ["gpt-4o", "gpt-4o-mini"];
+  const baseUrl = process.env.BASE_URL || "https://api.openai.com/v1";
+
+  if (baseUrl !== "https://api.openai.com/v1") {
+    if (!validModelsForCustomBaseUrl.includes(model as any)) {
+      throw new Error(
+        `Invalid model "${model}" for custom base URL. Valid options are: ${validModelsForCustomBaseUrl.join(", ")}.`
+      );
+    }
+  } else {
+    if (!validModelsForOpenAi.includes(model as any)) {
+      throw new Error(
+        `Invalid model "${model}" for OpenAI. Valid options are: ${validModelsForOpenAi.join(", ")}.`
+      );
+    }
+  }
+
   const systemPrompt = `
     Convert the following document page to markdown.
     Return only the markdown with no explanation text. Do not include deliminators like '''markdown.
@@ -42,7 +64,7 @@ export const getCompletion = async ({
 
   try {
     const response = await axios.post(
-      "https://api.openai.com/v1/chat/completions",
+      `${baseUrl}/chat/completions`,
       {
         messages,
         model,

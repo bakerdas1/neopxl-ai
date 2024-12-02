@@ -14,6 +14,8 @@ export interface DocumindArgs {
 export enum ModelOptions {
   gpt_4o = "gpt-4o",
   gpt_4o_mini = "gpt-4o-mini",
+  llava = "llava",
+  llama3_2_vision = "llama3.2-vision",
 }
 
 export interface Page {

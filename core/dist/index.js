@@ -12,7 +12,13 @@ const fs_extra_1 = __importDefault(require("fs-extra"));
 const os_1 = __importDefault(require("os"));
 const path_1 = __importDefault(require("path"));
 const p_limit_1 = __importDefault(require("p-limit"));
-const documind = async ({ cleanup = true, concurrency = 10, filePath, llmParams = {}, maintainFormat = false, model = types_1.ModelOptions.gpt_4o_mini, openaiAPIKey = "", outputDir, pagesToConvertAsImages = -1, tempDir = os_1.default.tmpdir(), }) => {
+const documind = async ({ cleanup = true, concurrency = 10, filePath, llmParams = {}, maintainFormat = false, model, //= ModelOptions.gpt_4o_mini,
+openaiAPIKey = "", outputDir, pagesToConvertAsImages = -1, tempDir = os_1.default.tmpdir(), }) => {
+    const baseUrl = process.env.BASE_URL || "https://api.openai.com/v1";
+    const defaultModel = model ??
+        (baseUrl !== "https://api.openai.com/v1"
+            ? types_1.ModelOptions.llava // Default for custom base URL
+            : types_1.ModelOptions.gpt_4o_mini); // Default for OpenAI
     let inputTokenCount = 0;
     let outputTokenCount = 0;
     let priorPage = "";
@@ -82,7 +88,7 @@ const documind = async ({ cleanup = true, concurrency = 10, filePath, llmParams 
                     imagePath,
                     llmParams,
                     maintainFormat,
-                    model,
+                    model: defaultModel,
                     priorPage,
                 });
                 const formattedMarkdown = (0, utils_1.formatMarkdown)(content);
@@ -109,7 +115,7 @@ const documind = async ({ cleanup = true, concurrency = 10, filePath, llmParams 
                     imagePath,
                     llmParams,
                     maintainFormat,
-                    model,
+                    model: defaultModel,
                     priorPage,
                 });
                 const formattedMarkdown = (0, utils_1.formatMarkdown)(content);
