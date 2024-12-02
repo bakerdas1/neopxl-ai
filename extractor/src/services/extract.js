@@ -9,9 +9,10 @@ import { getTemplate } from './templates.js';
  * @param {string} options.file - The file path to the document.
  * @param {object} options.schema - The schema definition for data extraction.
  * * @param {string} [options.template] - Name of a pre-defined template.
+ * * @param {string} [options.model] - The llm model to use if a base url is set.
  * @returns {Promise<object>} - The result of the extraction, including pages, extracted data, and file name.
  */
-export async function extract({ file, schema, template }) {
+export async function extract({ file, schema, template, model }) {
   try {
     if (!file) {
       throw new Error('File is required.');
@@ -34,7 +35,7 @@ export async function extract({ file, schema, template }) {
       throw new Error('You must provide a custom schema or template');
     }
 
-    const result = await extractData(file, finalSchema);
+    const result = await extractData(file, finalSchema, model);
 
     return {
       success: true,

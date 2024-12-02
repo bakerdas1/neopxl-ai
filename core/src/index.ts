@@ -19,12 +19,19 @@ export const documind = async ({
   filePath,
   llmParams = {},
   maintainFormat = false,
-  model = ModelOptions.gpt_4o_mini,
+  model, //= ModelOptions.gpt_4o_mini,
   openaiAPIKey = "",
   outputDir,
   pagesToConvertAsImages = -1,
   tempDir = os.tmpdir(),
 }: DocumindArgs): Promise<DocumindOutput> => {
+  const baseUrl = process.env.BASE_URL || "https://api.openai.com/v1";
+  const defaultModel =
+    model ??
+    (baseUrl !== "https://api.openai.com/v1"
+      ? ModelOptions.llava // Default for custom base URL
+      : ModelOptions.gpt_4o_mini); // Default for OpenAI
+
   let inputTokenCount = 0;
   let outputTokenCount = 0;
   let priorPage = "";
@@ -101,7 +108,7 @@ export const documind = async ({
           imagePath,
           llmParams,
           maintainFormat,
-          model,
+          model: defaultModel,
           priorPage,
         });
         const formattedMarkdown = formatMarkdown(content);
@@ -128,7 +135,7 @@ export const documind = async ({
           imagePath,
           llmParams,
           maintainFormat,
-          model,
+          model: defaultModel,
           priorPage,
         });
         const formattedMarkdown = formatMarkdown(content);

@@ -1,10 +1,11 @@
 import { documind } from 'core';
 import { generateMarkdownDocument } from './utils/generateMarkdown.js'; 
 
-export const convertFile = async (filePath) => {
+export const convertFile = async (filePath, model) => {
   try {
     const result = await documind({
       filePath,
+      model,
       openaiAPIKey: process.env.OPENAI_API_KEY, 
     });
 
