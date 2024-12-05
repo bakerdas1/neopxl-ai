@@ -229,6 +229,10 @@ runExtraction();
 ```
 Read the [templates documentation](https://docs.documind.xyz/templates/overview) for more details on templates and how to contribute yours.
 
+## **Using Local LLM Models**
+
+Read more on how to use local models [here](https://docs.documind.xyz/guides/local-models).
+
 ## **Contributing**
 
 Contributions are welcome! Please submit a pull request with any improvements or features.
