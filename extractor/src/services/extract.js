@@ -8,11 +8,12 @@ import { getTemplate } from './templates.js';
  * @param {object} options - Options for the extraction process.
  * @param {string} options.file - The file path to the document.
  * @param {object} options.schema - The schema definition for data extraction.
- * * @param {string} [options.template] - Name of a pre-defined template.
- * * @param {string} [options.model] - The llm model to use if a base url is set.
+ * @param {string} [options.template] - Name of a pre-defined template.
+ * @param {string} [options.model] - The llm model to use if a base url is set.
+ * @param {boolean} [options.autoSchema] - Option to auto-generate the schema.
  * @returns {Promise<object>} - The result of the extraction, including pages, extracted data, and file name.
  */
-export async function extract({ file, schema, template, model }) {
+export async function extract({ file, schema, template, model, autoSchema }) {
   try {
     if (!file) {
       throw new Error('File is required.');
@@ -22,7 +23,7 @@ export async function extract({ file, schema, template, model }) {
       throw new Error('File must be a PDF.');
     }
 
-    let finalSchema;
+    let finalSchema = null;
     if (template) {
       finalSchema = getTemplate(template); // Use pre-defined template
     } else if (schema) {
@@ -31,11 +32,12 @@ export async function extract({ file, schema, template, model }) {
         throw new Error(`Invalid schema format: ${errors.join(', ')}`);
       }
       finalSchema = schema; // Use custom schema
-    } else {
-      throw new Error('You must provide a custom schema or template');
+    } else if (!autoSchema) {
+      // If neither schema nor template is provided and autoSchema is not enabled, throw an error.
+      throw new Error('You must provide a schema, template, or enable autoSchema.');
     }
 
-    const result = await extractData(file, finalSchema, model);
+    const result = await extractData(file, finalSchema, model, autoSchema);
 
     return {
       success: true,
