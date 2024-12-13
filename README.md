@@ -11,10 +11,12 @@ This repo was built on top of Zerox - https://github.com/getomni-ai/zerox. The M
 
 ## **Features**
 
-- Converts PDFs to images for detailed AI processing.
-- Uses OpenAI’s API to extract and structure information.
-- Allows users to specify extraction schemas for various document formats.
-- Designed for flexible deployment on local or cloud environments.
+- Extracts structured JSON output from unstructured documents.
+- Converts documents into Markdown format.
+- Supports custom schemas for data extraction.
+- Includes pre-defined templates for common schemas.
+- Works with OpenAI and custom LLM setups (Llava and Llama3.2-vision).
+- Auto-generates schemas based on document content.
 
 ### Try the Hosted Version 🚀
 
