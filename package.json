@@ -1,6 +1,6 @@
 {
   "name": "documind",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "AI-powered document extraction.",
   "scripts": {
     "start": "npm run start --workspace=extractor",
