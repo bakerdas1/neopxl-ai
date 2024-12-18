@@ -1,5 +1,5 @@
 
-<a href="https://discord.gg/ZyTzj6qE">
+<a href="https://discord.gg/w2Ejj36hRU">
   <img src="https://user-images.githubusercontent.com/31022056/158916278-4504b838-7ecb-4ab9-a900-7dc002aade78.png" alt="Join us on Discord" width="200px">
 </a>
 
