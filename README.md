@@ -18,15 +18,15 @@ This repo was built on top of Zerox - https://github.com/getomni-ai/zerox. The M
 - Works with OpenAI and custom LLM setups (Llava and Llama3.2-vision).
 - Auto-generates schemas based on document content.
 
+### Try the Hosted Version 🚀
+
+The hosted version provides a seamless experience with fully managed APIs, so you can skip the setup and start extracting data right away. [Join the beta](https://documind.xyz/signup) to get access to the hosted service. 
+
+In the meantime, you can explore the playground [here](https://www.documind.xyz/playground). Upload your documents and extract structured data with your own custom schema, or use one of the sample documents and template schemas.
+
 ### Roadmap
 
 Checkout planned features and improvements on the [roadmap](https://github.com/DocumindHQ/documind/discussions).
-
-### Try the Hosted Version 🚀
-
-A demo of the **documind** hosted version will be available soon for you to try out! The hosted version provides a seamless experience with fully managed APIs, so you can skip the setup and start extracting data right away.
-
-For full access to the hosted service, please [request access](https://documind.xyz/signup) and we’ll get you set up.
 
 ## **Requirements**
 
