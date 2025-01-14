@@ -199,6 +199,8 @@ Here’s an example of what the extracted result might look like:
 
 ```
 
+Read the [documentation](https://docs.documind.xyz/guides/schema-definition) for more on how to define schemas and and enable auto-generation.
+
 ### **Templates**
 
 Documind comes with built-in templates for extracting data from popular document types like invoices, bank statements, and more. These templates make it easier to get started without defining your own schema.
