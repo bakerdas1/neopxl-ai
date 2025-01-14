@@ -1,5 +1,5 @@
 import { extractData } from '../main-extractor.js'; 
-import { isPdfFile } from '../utils/pdfValidator.js';
+import { isValidFile } from '../utils/fileValidator.js';
 import { validateSchema } from '../utils/schemaValidator.js';
 import { getTemplate } from './templates.js';
 
@@ -19,8 +19,8 @@ export async function extract({ file, schema, template, model, autoSchema }) {
       throw new Error('File is required.');
     }
 
-    if (!isPdfFile(file)) {
-      throw new Error('File must be a PDF.');
+    if (!isValidFile(file)) {
+      throw new Error('File must be a valid format: PDF, PNG, JPG, TXT, DOCX, or HTML.');
     }
 
     let finalSchema = null;

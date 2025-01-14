@@ -4,7 +4,7 @@
  * @returns {Object} - { isValid: boolean, errors: Array<string> }
  */
 export function validateSchema(schema) {
-    const validTypes = ["string", "number", "array", "object"];
+    const validTypes = ["string", "number", "array", "object", "boolean", "enum"];
     let errors = [];
   
     if (!Array.isArray(schema)) {
@@ -36,7 +36,17 @@ export function validateSchema(schema) {
           field.children.forEach((child, index) => validateField(child, `${path}.children[${index}]`));
         }
       }
+
+      // Additional checks for enum
+    if (field.type === "enum") {
+      if (!field.hasOwnProperty("values") || !Array.isArray(field.values) || field.values.length === 0) {
+        errors.push(`"values" is required and must be a non-empty array for enum at ${path}`);
+      } else if (!field.values.every((value) => typeof value === "string")) {
+        errors.push(`"values" for enum at ${path} must be an array of strings`);
+      }
     }
+
+  }
   
     schema.forEach((field, index) => validateField(field, `schema[${index}]`));
   

@@ -24,7 +24,7 @@ const getCompletion = async ({ apiKey, imagePath, llmParams, maintainFormat, mod
         }
     }
     const systemPrompt = `
-    Convert the following document page to markdown.
+    Convert the following image/document  to markdown. 
     Return only the markdown with no explanation text. Do not include deliminators like '''markdown.
     You must include all information on the page. Do not exclude headers, footers, or subtext.
   `;
