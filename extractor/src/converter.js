@@ -13,6 +13,7 @@ export const convertFile = async (filePath, model) => {
     const totalPages = pages.length;
 
     const markdown = await generateMarkdownDocument(pages);
+    console.log('Markdown generated', markdown);
 
     return { markdown, totalPages, fileName };
   } catch (error) {
