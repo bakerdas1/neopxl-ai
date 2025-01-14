@@ -22,9 +22,24 @@ The hosted version provides a seamless experience with fully managed APIs, so yo
 
 In the meantime, you can explore the playground [here](https://www.documind.xyz/playground). Upload your documents and extract structured data with your own custom schema, or use one of the sample documents and template schemas.
 
-### Roadmap
+## Roadmap
 
-Checkout planned features and improvements on the [roadmap](https://github.com/DocumindHQ/documind/discussions).
+### ✅ Released Features  
+- [x] PDF Extraction  
+- [x] Basic Schema Definition  
+- [x] Structured JSON Output  
+- [x] Template Schemas  
+- [x] Local LLM Integration (Llava and Llama3.2)  
+- [x] Auto-generated Schemas  
+- [x] Documnt Formatters (Text and Markdown)  
+- [x] Multi-file Support (DOCX, PNG, JPG, TXT, HTML)  
+- [x] Additional Schema Field Types (Boolean and Enum)
+
+### 🚧 Upcoming Features  
+- [ ] Extended LLM Support (Local and cloud)  
+- [ ] Image Data Extraction  
+- [ ] Advanced Document Formatters  
+- [ ] Data Classification
 
 ## **Requirements**
 
