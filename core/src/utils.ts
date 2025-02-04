@@ -14,7 +14,7 @@ const convertAsync = promisify(convert);
 
 const defaultLLMParams: LLMParams = {
   frequencyPenalty: 0, // OpenAI defaults to 0
-  maxTokens: 2000,
+  maxTokens: 4000,
   presencePenalty: 0, // OpenAI defaults to 0
   temperature: 0,
   topP: 1, // OpenAI defaults to 1
@@ -218,7 +218,7 @@ export const convertPdfToImages = async ({
   const options = {
     density: 300,
     format: "png",
-    height: 1056,
+    height: 2048,
     preserveAspectRatio: true,
     saveFilename: path.basename(localPath, path.extname(localPath)),
     savePath: tempDir,

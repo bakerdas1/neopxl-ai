@@ -1,7 +1,7 @@
 {
   "name": "documind",
   "version": "1.0.12",
-  "description": "AI-powered document extraction.",
+  "description": "Intelligent document processing and extraction.",
   "scripts": {
     "start": "npm run start --workspace=extractor",
     "dev": "npm run dev --workspace=extractor"
@@ -23,6 +23,7 @@
     "type": "git",
     "url": "https://github.com/DocumindHQ/documind.git"
   },
+  "homepage": "https://documind.xyz",
   "dependencies": {
     "axios": "^1.7.7",
     "child_process": "^1.0.2",
