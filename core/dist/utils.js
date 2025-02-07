@@ -40,7 +40,7 @@ const sharp_1 = __importDefault(require("sharp"));
 const convertAsync = (0, util_1.promisify)(libreoffice_convert_1.convert);
 const defaultLLMParams = {
     frequencyPenalty: 0, // OpenAI defaults to 0
-    maxTokens: 2000,
+    maxTokens: 4000,
     presencePenalty: 0, // OpenAI defaults to 0
     temperature: 0,
     topP: 1, // OpenAI defaults to 1
@@ -202,7 +202,7 @@ const convertPdfToImages = async ({ localPath, pagesToConvertAsImages, tempDir, 
     const options = {
         density: 300,
         format: "png",
-        height: 1056,
+        height: 2048,
         preserveAspectRatio: true,
         saveFilename: path_1.default.basename(localPath, path_1.default.extname(localPath)),
         savePath: tempDir,
