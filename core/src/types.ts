@@ -1,13 +1,11 @@
 export enum OpenAIModels {
   GPT_4O = "gpt-4o",
   GPT_4O_MINI = "gpt-4o-mini",
-  // Add more as you like
 }
 
 export enum LocalModels {
   LLAVA = "llava",
   LLAMA3_2_VISION = "llama3.2-vision",
-  // Add more as you like
 }
 
 export type ModelOptions = OpenAIModels | LocalModels;

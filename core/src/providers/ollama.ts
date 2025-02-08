@@ -13,14 +13,12 @@ export class Ollama implements Completion {
       priorPage,
     } = args;
 
-    // 1) Read from environment
     const baseUrl = process.env.BASE_URL;
     if (!baseUrl) {
       throw new Error("Missing BASE_URL in environment variables.");
     }
 
-    // 2) Confirm the chosen model is in LocalModels
-    const validModels = Object.values(LocalModels); // ["llava", "llama3.2-vision", ...]
+    const validModels = Object.values(LocalModels); 
     if (!validModels.includes(model as LocalModels)) {
       throw new Error(`Model "${model}" is not a local model.`);
     }
@@ -40,7 +38,6 @@ export class Ollama implements Completion {
       });
     }
 
-    // 5) Convert the image to base64
     const base64Image = await encodeImageToBase64(imagePath);
     messages.push({
       role: "user",
@@ -62,7 +59,7 @@ export class Ollama implements Completion {
         },
         {
           headers: {
-            Authorization: "ollama", //Check if this is needed at all when using ollama in rst api
+            // Authorization: "ollama",
             "Content-Type": "application/json",
           },
         }
@@ -75,7 +72,7 @@ export class Ollama implements Completion {
         outputTokens: data.usage?.completion_tokens ?? 0,
       };
     } catch (err) {
-      console.error("LocalProvider error:", err);
+      console.error("Local provider error:", err);
       throw err;
     }
   }

@@ -1,7 +1,10 @@
-import { extractData } from '../main-extractor.js'; 
 import { isValidFile } from '../utils/fileValidator.js';
 import { validateSchema } from '../utils/schemaValidator.js';
 import { getTemplate } from './templates.js';
+import { convertToZodSchema } from '../utils/convertToZodSchema.js';
+import { autogenerateSchema } from "../utils/autogenerateSchema.js";
+import { convertFile } from '../converter.js'; 
+import { getExtractor } from '../extractors/index.js';
 
 /**
  * Extracts data from a document based on a provided schema.
@@ -15,38 +18,56 @@ import { getTemplate } from './templates.js';
  */
 export async function extract({ file, schema, template, model, autoSchema }) {
   try {
+
+    const defaultModel = model || "gpt-4o-mini";
+
     if (!file) {
-      throw new Error('File is required.');
+      throw new Error("File is required.");
     }
 
     if (!isValidFile(file)) {
-      throw new Error('File must be a valid format: PDF, PNG, JPG, TXT, DOCX, or HTML.');
+      throw new Error("Invalid file type.");
     }
 
     let finalSchema = null;
     if (template) {
-      finalSchema = getTemplate(template); // Use pre-defined template
+      finalSchema = getTemplate(template); 
     } else if (schema) {
       const { isValid, errors } = validateSchema(schema);
       if (!isValid) {
-        throw new Error(`Invalid schema format: ${errors.join(', ')}`);
+        throw new Error(`Invalid schema: ${errors.join(", ")}`);
       }
-      finalSchema = schema; // Use custom schema
+      finalSchema = schema;
     } else if (!autoSchema) {
-      // If neither schema nor template is provided and autoSchema is not enabled, throw an error.
-      throw new Error('You must provide a schema, template, or enable autoSchema.');
+      throw new Error("You must provide a schema, template, or enable autoSchema.");
     }
 
-    const result = await extractData(file, finalSchema, model, autoSchema);
+    const { markdown, totalPages, fileName } = await convertFile(file, defaultModel);
+
+    if (autoSchema) {
+      finalSchema = await autogenerateSchema(markdown);
+      if (!finalSchema) {
+        throw new Error("Failed to auto-generate schema.");
+      }
+    }
+
+    const dynamicZodSchema = convertToZodSchema(finalSchema);
+    const extraction = getExtractor(defaultModel);
+
+    const event = await extraction({
+      markdown,
+      zodSchema: dynamicZodSchema,
+    });
 
     return {
       success: true,
-      pages: result.totalPages,
-      data: result.event,
-      fileName: result.fileName
+      pages: totalPages,
+      data: event,
+      fileName,
+      markdown,
     };
   } catch (error) {
-    console.error('Error processing document:', error);
+    console.error("Error processing document:", error);
     throw new Error(`Failed to process document: ${error.message}`);
   }
 }

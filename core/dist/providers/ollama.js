@@ -10,13 +10,11 @@ const utils_1 = require("../utils");
 class Ollama {
     async getCompletion(args) {
         const { imagePath, llmParams, maintainFormat, model, priorPage, } = args;
-        // 1) Read from environment
         const baseUrl = process.env.BASE_URL;
         if (!baseUrl) {
             throw new Error("Missing BASE_URL in environment variables.");
         }
-        // 2) Confirm the chosen model is in LocalModels
-        const validModels = Object.values(types_1.LocalModels); // ["llava", "llama3.2-vision", ...]
+        const validModels = Object.values(types_1.LocalModels);
         if (!validModels.includes(model)) {
             throw new Error(`Model "${model}" is not a local model.`);
         }
@@ -32,7 +30,6 @@ class Ollama {
                 content: `Please ensure markdown formatting remains consistent with the prior page:\n\n"""${priorPage}"""`,
             });
         }
-        // 5) Convert the image to base64
         const base64Image = await (0, utils_1.encodeImageToBase64)(imagePath);
         messages.push({
             role: "user",
@@ -50,7 +47,7 @@ class Ollama {
                 ...(0, utils_1.convertKeysToSnakeCase)(llmParams ?? null),
             }, {
                 headers: {
-                    Authorization: "ollama", //Check if this is needed at all when using ollama in rst api
+                    // Authorization: "ollama",
                     "Content-Type": "application/json",
                 },
             });
@@ -62,7 +59,7 @@ class Ollama {
             };
         }
         catch (err) {
-            console.error("LocalProvider error:", err);
+            console.error("Local provider error:", err);
             throw err;
         }
     }
