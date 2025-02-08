@@ -1,3 +1,12 @@
+export declare enum OpenAIModels {
+    GPT_4O = "gpt-4o",
+    GPT_4O_MINI = "gpt-4o-mini"
+}
+export declare enum LocalModels {
+    LLAVA = "llava",
+    LLAMA3_2_VISION = "llama3.2-vision"
+}
+export type ModelOptions = OpenAIModels | LocalModels;
 export interface DocumindArgs {
     cleanup?: boolean;
     concurrency?: number;
@@ -5,16 +14,9 @@ export interface DocumindArgs {
     llmParams?: LLMParams;
     maintainFormat?: boolean;
     model?: ModelOptions;
-    openaiAPIKey?: string;
     outputDir?: string;
     pagesToConvertAsImages?: number | number[];
     tempDir?: string;
-}
-export declare enum ModelOptions {
-    gpt_4o = "gpt-4o",
-    gpt_4o_mini = "gpt-4o-mini",
-    llava = "llava",
-    llama3_2_vision = "llama3.2-vision"
 }
 export interface Page {
     content: string;
@@ -34,7 +36,6 @@ export interface CompletionResponse {
     outputTokens: number;
 }
 export interface CompletionArgs {
-    apiKey: string;
     imagePath: string;
     llmParams?: LLMParams;
     maintainFormat: boolean;
