@@ -5,33 +5,26 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.documind = void 0;
 const utils_1 = require("./utils");
-const openAI_1 = require("./openAI");
-const types_1 = require("./types");
-const utils_2 = require("./utils");
 const fs_extra_1 = __importDefault(require("fs-extra"));
 const os_1 = __importDefault(require("os"));
 const path_1 = __importDefault(require("path"));
 const p_limit_1 = __importDefault(require("p-limit"));
+const types_1 = require("./types");
+const providers_1 = require("./providers");
 const documind = async ({ cleanup = true, concurrency = 10, filePath, llmParams = {}, maintainFormat = false, model, //= ModelOptions.gpt_4o_mini,
-openaiAPIKey = "", outputDir, pagesToConvertAsImages = -1, tempDir = os_1.default.tmpdir(), }) => {
-    const baseUrl = process.env.BASE_URL || "https://api.openai.com/v1";
-    const defaultModel = model ??
-        (baseUrl !== "https://api.openai.com/v1"
-            ? types_1.ModelOptions.llava // Default for custom base URL
-            : types_1.ModelOptions.gpt_4o_mini); // Default for OpenAI
+outputDir, pagesToConvertAsImages = -1, tempDir = os_1.default.tmpdir(), }) => {
     let inputTokenCount = 0;
     let outputTokenCount = 0;
     let priorPage = "";
     const aggregatedMarkdown = [];
     const startTime = new Date();
-    llmParams = (0, utils_2.validateLLMParams)(llmParams);
-    // Validators
-    if (!openaiAPIKey || !openaiAPIKey.length) {
-        throw new Error("Missing OpenAI API key");
-    }
+    // Basic checks
     if (!filePath || !filePath.length) {
         throw new Error("Missing file path");
     }
+    const defaultModel = model ?? types_1.OpenAIModels.GPT_4O_MINI;
+    const validatedParams = (0, utils_1.validateLLMParams)(llmParams);
+    const providerInstance = providers_1.getModel.getProviderForModel(defaultModel);
     // Ensure temp directory exists + create temp folder
     const rand = Math.floor(1000 + Math.random() * 9000).toString();
     const tempDirectory = path_1.default.join(tempDir || os_1.default.tmpdir(), `documind-file-${rand}`);
@@ -83,10 +76,9 @@ openaiAPIKey = "", outputDir, pagesToConvertAsImages = -1, tempDir = os_1.defaul
         for (const image of images) {
             const imagePath = path_1.default.join(tempDirectory, image);
             try {
-                const { content, inputTokens, outputTokens } = await (0, openAI_1.getCompletion)({
-                    apiKey: openaiAPIKey,
+                const { content, inputTokens, outputTokens } = await providerInstance.getCompletion({
                     imagePath,
-                    llmParams,
+                    llmParams: validatedParams,
                     maintainFormat,
                     model: defaultModel,
                     priorPage,
@@ -110,10 +102,9 @@ openaiAPIKey = "", outputDir, pagesToConvertAsImages = -1, tempDir = os_1.defaul
         const processPage = async (image) => {
             const imagePath = path_1.default.join(tempDirectory, image);
             try {
-                const { content, inputTokens, outputTokens } = await (0, openAI_1.getCompletion)({
-                    apiKey: openaiAPIKey,
+                const { content, inputTokens, outputTokens } = await providerInstance.getCompletion({
                     imagePath,
-                    llmParams,
+                    llmParams: validatedParams,
                     maintainFormat,
                     model: defaultModel,
                     priorPage,

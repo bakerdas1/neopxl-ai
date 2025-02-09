@@ -6,7 +6,6 @@ export const convertFile = async (filePath, model) => {
     const result = await documind({
       filePath,
       model,
-      openaiAPIKey: process.env.OPENAI_API_KEY, 
     });
 
     const { pages, fileName } = result;

@@ -4,14 +4,20 @@ import {
   downloadFile,
   formatMarkdown,
   isString,
+  validateLLMParams
 } from "./utils";
-import { getCompletion } from "./openAI";
-import { ModelOptions, DocumindArgs, DocumindOutput } from "./types";
-import { validateLLMParams } from "./utils";
 import fs from "fs-extra";
 import os from "os";
 import path from "path";
 import pLimit, { Limit } from "p-limit";
+import {
+  DocumindArgs,
+  DocumindOutput,
+  ModelOptions,
+  OpenAIModels,
+} from "./types";
+import { getModel } from "./providers";
+import { Completion } from "./providers/utils/completion";
 
 export const documind = async ({
   cleanup = true,
@@ -20,17 +26,10 @@ export const documind = async ({
   llmParams = {},
   maintainFormat = false,
   model, //= ModelOptions.gpt_4o_mini,
-  openaiAPIKey = "",
   outputDir,
   pagesToConvertAsImages = -1,
   tempDir = os.tmpdir(),
 }: DocumindArgs): Promise<DocumindOutput> => {
-  const baseUrl = process.env.BASE_URL || "https://api.openai.com/v1";
-  const defaultModel =
-    model ??
-    (baseUrl !== "https://api.openai.com/v1"
-      ? ModelOptions.llava // Default for custom base URL
-      : ModelOptions.gpt_4o_mini); // Default for OpenAI
 
   let inputTokenCount = 0;
   let outputTokenCount = 0;
@@ -38,15 +37,16 @@ export const documind = async ({
   const aggregatedMarkdown: string[] = [];
   const startTime = new Date();
 
-  llmParams = validateLLMParams(llmParams);
-
-  // Validators
-  if (!openaiAPIKey || !openaiAPIKey.length) {
-    throw new Error("Missing OpenAI API key");
-  }
+  // Basic checks
   if (!filePath || !filePath.length) {
     throw new Error("Missing file path");
   }
+
+  const defaultModel: ModelOptions = model ?? OpenAIModels.GPT_4O_MINI;
+
+  const validatedParams = validateLLMParams(llmParams);
+
+  const providerInstance: Completion = getModel.getProviderForModel(defaultModel);
 
   // Ensure temp directory exists + create temp folder
   const rand = Math.floor(1000 + Math.random() * 9000).toString();
@@ -103,10 +103,9 @@ export const documind = async ({
     for (const image of images) {
       const imagePath = path.join(tempDirectory, image);
       try {
-        const { content, inputTokens, outputTokens } = await getCompletion({
-          apiKey: openaiAPIKey,
+        const { content, inputTokens, outputTokens } = await providerInstance.getCompletion({
           imagePath,
-          llmParams,
+          llmParams: validatedParams,
           maintainFormat,
           model: defaultModel,
           priorPage,
@@ -130,10 +129,9 @@ export const documind = async ({
     const processPage = async (image: string): Promise<string | null> => {
       const imagePath = path.join(tempDirectory, image);
       try {
-        const { content, inputTokens, outputTokens } = await getCompletion({
-          apiKey: openaiAPIKey,
+        const { content, inputTokens, outputTokens } = await providerInstance.getCompletion({
           imagePath,
-          llmParams,
+          llmParams: validatedParams,
           maintainFormat,
           model: defaultModel,
           priorPage,
