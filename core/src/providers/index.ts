@@ -2,7 +2,7 @@ import { Completion } from "./utils/completion";
 import { OpenAI } from "./openAI";
 import { Ollama } from "./ollama";
 import { Google } from "./google";
-import { ModelOptions, OpenAIModels, GoogleModels, LocalModels } from "../types";
+import { ModelOptions, OpenAIModels, LocalModels, GoogleModels } from "../types";
 
 export class getModel {
   public static getProviderForModel(model: ModelOptions): Completion {

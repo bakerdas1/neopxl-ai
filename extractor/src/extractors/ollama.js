@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 
-export const ollamaExtractor = async ({ markdown, zodSchema }) => {
+export const ollamaExtractor = async ({ markdown, zodSchema, prompt }) => {
   if (!process.env.BASE_URL) {
     throw new Error("Missing BASE_URL");
   }
@@ -12,14 +12,6 @@ export const ollamaExtractor = async ({ markdown, zodSchema }) => {
    });
 
   const ollamaModel = "llama3.1";
-
-  const prompt = `
-    You are an expert in structured data extraction. Your task is to extract information from unstructured content and transform it into the specified structure. Follow these rules strictly:
-
-   1. Handle Missing or Undetermined Data:
-   - If any field's information is missing, unknown, or cannot be determined, return its value as null.
-   - **Do not use substitutes such as "unknown," "missing," or any other placeholder for missing or unknown data. The value **must** always be explicitly null.
-`;
 
   const completion = await openai.beta.chat.completions.parse({
     model: ollamaModel,

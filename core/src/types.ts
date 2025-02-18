@@ -3,14 +3,14 @@ export enum OpenAIModels {
   GPT_4O_MINI = "gpt-4o-mini",
 }
 
-export enum GoogleModels {
-  GEMINI_2_FLASH = "gemini-2.0-flash-001",
-  GEMINI_2_FLASH_LITE = "gemini-2.0-flash-lite-preview-02-05",
-}
-
 export enum LocalModels {
   LLAVA = "llava",
   LLAMA3_2_VISION = "llama3.2-vision",
+}
+
+export enum GoogleModels {
+  GEMINI_2_FLASH = "gemini-2.0-flash-001",
+  GEMINI_2_FLASH_LITE = "gemini-2.0-flash-lite-preview-02-05",
 }
 
 export type ModelOptions = OpenAIModels | GoogleModels | LocalModels;

@@ -8,6 +8,8 @@
     "dev": "nodemon src/index.js"
   },
   "dependencies": {
+    "@ai-sdk/google": "^1.1.14",
+    "ai": "^4.1.41",
     "axios": "^1.7.7",
     "core": "*",
     "dotenv": "^16.4.5",
