@@ -42,7 +42,8 @@ async function blanketSchema(markdown, model) {
   const result = await extraction({
     markdown,
     zodSchema: schemaToUse,
-    prompt: AUTO_SCHEMA_PROMPT(markdown), 
+    prompt: AUTO_SCHEMA_PROMPT(markdown),
+    model: model, 
   });
 
   if (!result || !result.fields) {
@@ -67,7 +68,8 @@ async function instructionBasedSchema(markdown, model, instructions) {
   const instructionFields = await extraction({
     markdown: instructions,
     zodSchema: instructionsZod,
-    prompt: instructionPrompt
+    prompt: instructionPrompt,
+    model: model,
   });
 
   if (!instructionFields || !instructionFields.fields) {
@@ -81,7 +83,8 @@ async function instructionBasedSchema(markdown, model, instructions) {
   const result = await extraction({
     markdown,
     zodSchema: schemaToUse,
-    prompt: INSTRUCTIONS_SCHEMA_PROMPT(markdown, data), 
+    prompt: INSTRUCTIONS_SCHEMA_PROMPT(markdown, data),
+    model: model,
   });
 
   if (!result || !result.fields) {

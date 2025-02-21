@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 
-export const ollamaExtractor = async ({ markdown, zodSchema, prompt }) => {
+export const ollamaExtractor = async ({ markdown, zodSchema, prompt, model }) => {
   if (!process.env.BASE_URL) {
     throw new Error("Missing BASE_URL");
   }
@@ -11,7 +11,7 @@ export const ollamaExtractor = async ({ markdown, zodSchema, prompt }) => {
     apiKey: 'ollama'
    });
 
-  const ollamaModel = "llama3.1";
+  const ollamaModel = model;
 
   const completion = await openai.beta.chat.completions.parse({
     model: ollamaModel,

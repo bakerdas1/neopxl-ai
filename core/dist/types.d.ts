@@ -3,12 +3,14 @@ export declare enum OpenAIModels {
     GPT_4O_MINI = "gpt-4o-mini"
 }
 export declare enum LocalModels {
-    LLAVA = "llava",
     LLAMA3_2_VISION = "llama3.2-vision"
 }
 export declare enum GoogleModels {
     GEMINI_2_FLASH = "gemini-2.0-flash-001",
-    GEMINI_2_FLASH_LITE = "gemini-2.0-flash-lite-preview-02-05"
+    GEMINI_2_FLASH_LITE = "gemini-2.0-flash-lite-preview-02-05",
+    GEMINI_1_5_FLASH = "gemini-1.5-flash",
+    GEMINI_1_5_FLASH_8B = "gemini-1.5-flash-8b",
+    GEMINI_1_5_PRO = "gemini-1.5-pro"
 }
 export type ModelOptions = OpenAIModels | GoogleModels | LocalModels;
 export interface DocumindArgs {

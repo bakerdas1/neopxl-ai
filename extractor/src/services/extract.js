@@ -59,6 +59,7 @@ export async function extract({ file, schema, template, model, autoSchema }) {
       markdown,
       zodSchema: dynamicZodSchema,
       prompt: BASE_EXTRACTION_PROMPT,
+      model: defaultModel,
     });
 
     return {
