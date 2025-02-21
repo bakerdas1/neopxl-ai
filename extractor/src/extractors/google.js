@@ -43,7 +43,7 @@ const result = await modelToUse.generateContent(
   );
 
 //console.log(result.response.text());
-const event = result.response.text();
+const event = JSON.parse(result.response.text())
 return event;
 }
 
