@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^1.1.14",
+    "@google/generative-ai": "^0.22.0",
     "ai": "^4.1.41",
     "axios": "^1.7.7",
     "core": "*",
@@ -16,7 +17,8 @@
     "openai": "^4.68.4",
     "pdf-lib": "^1.17.1",
     "uuid": "^11.0.2",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "zod-to-json-schema": "^3.24.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.7"

@@ -1,25 +1,49 @@
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { generateObject } from 'ai';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { zodToJsonSchema } from "zod-to-json-schema";
 
-export const googleExtractor = async ({ markdown, zodSchema, prompt }) => {
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+export const googleExtractor = async ({ markdown, zodSchema, prompt, model }) => {
     if (!process.env.GEMINI_API_KEY) {
       throw new Error("Missing GEMINI_API_KEY");
     }
 
-const google = createGoogleGenerativeAI({
-    apiKey: process.env.GEMINI_API_KEY,
-});
-const googleModel = "gemini-2.0-flash-001"
+const googleModel = model
 
-const completion = await generateObject({
-    model: google(googleModel, {
-      structuredOutputs: false,
-    }),
-    schema: zodSchema,
-    prompt: markdown,
-    system: prompt,
-  });
+// Convert Zod schema to JSON schema
+let jsonSchema = zodToJsonSchema(zodSchema);
 
-  const event = completion.object;
-  return event;
+// Remove additionalProperties and $schema keys
+const removeKeys = (obj) => {
+    if (Array.isArray(obj)) {
+        return obj.map(removeKeys);
+    } else if (typeof obj === "object" && obj !== null) {
+        return Object.fromEntries(
+            Object.entries(obj)
+                .filter(([key]) => key !== "additionalProperties" && key !== "$schema")
+                .map(([key, value]) => [key, removeKeys(value)])
+        );
+    }
+    return obj;
+};
+
+jsonSchema = removeKeys(jsonSchema);
+
+const modelToUse = genAI.getGenerativeModel({
+    model: googleModel,
+    systemInstruction: prompt,
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: jsonSchema,
+      },
+    });
+    
+const result = await modelToUse.generateContent(
+    markdown,
+  );
+
+//console.log(result.response.text());
+const event = result.response.text();
+return event;
 }
+

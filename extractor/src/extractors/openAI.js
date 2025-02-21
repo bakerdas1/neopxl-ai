@@ -1,13 +1,13 @@
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 
-export const openAIExtractor = async ({ markdown, zodSchema, prompt }) => {
+export const openAIExtractor = async ({ markdown, zodSchema, prompt, model }) => {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("Missing OPENAI_API_KEY");
   }
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const openAiModel = "gpt-4o-2024-08-06";
+  const openAiModel = model;
 
   const completion = await openai.beta.chat.completions.parse({
     model: openAiModel,
