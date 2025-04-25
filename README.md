@@ -29,17 +29,18 @@ In the meantime, you can explore the playground [here](https://www.documind.xyz/
 - [x] Basic Schema Definition  
 - [x] Structured JSON Output  
 - [x] Template Schemas  
-- [x] Local LLM Integration (Llava and Llama3.2)  
+- [x] Local LLM Integration (Llama3.2)  
 - [x] Auto-generated Schemas  
-- [x] Documnt Formatters (Text and Markdown)  
+- [x] Document Formatters (Text and Markdown)  
 - [x] Multi-file Support (DOCX, PNG, JPG, TXT, HTML)  
 - [x] Additional Schema Field Types (Boolean and Enum)
 
 ### 🚧 Upcoming Features  
-- [ ] Extended LLM Support (Local and cloud)  
-- [ ] Image Data Extraction  
+- [ ] Additional Models (Local and cloud)  
+- [ ] Image Extraction  
 - [ ] Advanced Document Formatters  
 - [ ] Data Classification
+- [ ] Use Your Fine-tuned Models
 
 ## **Requirements**
 
