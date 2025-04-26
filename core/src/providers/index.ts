@@ -12,7 +12,7 @@ export class getModel {
     if (Object.values(GoogleModels).includes(model as GoogleModels)) {
       return new Google();
     }
-    else if (Object.values(LocalModels).includes(model as LocalModels)) {
+    if (Object.values(LocalModels).includes(model as LocalModels)) {
       return new Ollama();
     }
 
