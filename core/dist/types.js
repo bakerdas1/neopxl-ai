@@ -5,6 +5,8 @@ var OpenAIModels;
 (function (OpenAIModels) {
     OpenAIModels["GPT_4O"] = "gpt-4o";
     OpenAIModels["GPT_4O_MINI"] = "gpt-4o-mini";
+    OpenAIModels["GPT_4_1"] = "gpt-4.1";
+    OpenAIModels["GPT_4_1_MINI"] = "gpt-4.1-mini";
 })(OpenAIModels || (exports.OpenAIModels = OpenAIModels = {}));
 var LocalModels;
 (function (LocalModels) {

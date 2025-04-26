@@ -13,7 +13,7 @@ class getModel {
         if (Object.values(types_1.GoogleModels).includes(model)) {
             return new google_1.Google();
         }
-        else if (Object.values(types_1.LocalModels).includes(model)) {
+        if (Object.values(types_1.LocalModels).includes(model)) {
             return new ollama_1.Ollama();
         }
         throw new Error(`No provider found for model "${model}"`);
