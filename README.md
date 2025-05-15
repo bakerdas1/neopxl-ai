@@ -18,9 +18,7 @@
 
 ### Try the Hosted Version 🚀
 
-The hosted version provides a seamless experience with fully managed APIs, so you can skip the setup and start extracting data right away. [Join the beta](https://documind.xyz/signup) to get access to the hosted service. 
-
-In the meantime, you can explore the playground [here](https://www.documind.xyz/playground). Upload your documents and extract structured data with your own custom schema, or use one of the sample documents and template schemas.
+The hosted version provides a seamless experience with fully managed APIs, so you can skip the setup and start extracting data right away. [Join the beta](https://documind.xyz) to get access to the hosted service. 
 
 ## Roadmap
 
