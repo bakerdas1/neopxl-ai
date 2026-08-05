@@ -46,11 +46,13 @@ async function blanketSchema(markdown, model) {
     model: model, 
   });
 
-  if (!result || !result.fields) {
+  const fields = result?.data !== undefined ? result.data?.fields : result?.fields;
+
+  if (!fields) {
     throw new Error("Error auto generating default schema.");
   }
 
-  return cleanSchemaFields(result.fields);
+  return cleanSchemaFields(fields);
 }
 
 async function instructionBasedSchema(markdown, model, instructions) {
@@ -72,11 +74,11 @@ async function instructionBasedSchema(markdown, model, instructions) {
     model: model,
   });
 
-  if (!instructionFields || !instructionFields.fields) {
+  const data = instructionFields.data?.fields ?? instructionFields.fields;
+
+  if (!data) {
     throw new Error("Error identifying the fields to be extracted.");
   }
-
-  const data = instructionFields.fields;
 
   const schemaToUse = extraction === googleExtractor ? secondarySchema : baseSchema;
 
@@ -87,11 +89,13 @@ async function instructionBasedSchema(markdown, model, instructions) {
     model: model,
   });
 
-  if (!result || !result.fields) {
+  const fields = result?.data !== undefined ? result.data?.fields : result?.fields;
+
+  if (!fields) {
     throw new Error("Error auto generating specified schema.");
   }
 
-  return cleanSchemaFields(result.fields);
+  return cleanSchemaFields(fields);
 }
 
 export const autoschema = autogenerateSchema;
