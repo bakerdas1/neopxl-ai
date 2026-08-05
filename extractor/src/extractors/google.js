@@ -10,8 +10,8 @@ export const googleExtractor = async ({ markdown, zodSchema, prompt, model }) =>
 
 const googleModel = model
 
-// Convert Zod schema to JSON schema
-let jsonSchema = zodToJsonSchema(zodSchema);
+// Convert Zod schema to JSON schema (inline all shared schemas — Gemini rejects $ref)
+let jsonSchema = zodToJsonSchema(zodSchema, { $refStrategy: "none" });
 
 // Remove additionalProperties and $schema keys
 const removeKeys = (obj) => {
