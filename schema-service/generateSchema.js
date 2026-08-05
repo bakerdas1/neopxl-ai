@@ -5,6 +5,23 @@ import { mergeSchemas } from './mergeSchemas.js';
 import pLimit from 'p-limit';
 
 const CONCURRENCY = 3;
+const MAX_AUTOSCHEMA_CHARS = 30000;
+const RETRY_AUTOSCHEMA_CHARS = 10000;
+
+function isTruncatedJsonError(err) {
+  return err instanceof SyntaxError || /JSON|Unexpected end/.test(err.message || '');
+}
+
+async function generateSchemaFor(markdown, model, autoSchemaArg) {
+  try {
+    const slice = markdown.length > MAX_AUTOSCHEMA_CHARS ? markdown.slice(0, MAX_AUTOSCHEMA_CHARS) : markdown;
+    return await autogenerateSchema(slice, model, autoSchemaArg);
+  } catch (err) {
+    if (!isTruncatedJsonError(err) || markdown.length <= RETRY_AUTOSCHEMA_CHARS) throw err;
+    const retrySlice = markdown.slice(0, RETRY_AUTOSCHEMA_CHARS);
+    return await autogenerateSchema(retrySlice, model, autoSchemaArg);
+  }
+}
 
 /**
  * Generates a merged extraction schema from one or more document files.
@@ -26,7 +43,7 @@ export async function generateSchema({ files, model = process.env.MODEL || 'gemi
         const markdown = await generateMarkdownDocument(coreResult.pages);
 
         const schemaStart = Date.now();
-        const fields = await autogenerateSchema(markdown, model, autoSchemaArg);
+        const fields = await generateSchemaFor(markdown, model, autoSchemaArg);
         const schemaTime = Date.now() - schemaStart;
 
         if (!Array.isArray(fields)) {
