@@ -4,7 +4,9 @@
   "description": "Intelligent document processing and extraction.",
   "scripts": {
     "start": "npm run start --workspace=extractor",
-    "dev": "npm run dev --workspace=extractor"
+    "dev": "npm run dev --workspace=extractor",
+    "example": "node example.mjs",
+    "ui": "node server.mjs"
   },
   "workspaces": [
     "core",
@@ -25,11 +27,14 @@
   },
   "homepage": "https://documind.xyz",
   "dependencies": {
+    "adm-zip": "^0.6.0",
     "axios": "^1.7.7",
+    "bcrypt": "^6.0.0",
     "child_process": "^1.0.2",
     "core": "file:./core",
     "dotenv": "^16.4.5",
     "fs-extra": "^11.2.0",
+    "jsonwebtoken": "^9.0.3",
     "libreoffice-convert": "^1.6.0",
     "mime-types": "^2.1.35",
     "openai": "^4.68.4",

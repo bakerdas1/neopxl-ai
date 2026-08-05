@@ -1,6 +1,6 @@
-import { getExtractor } from '../extractors/index.js';
-import { googleExtractor } from '../extractors/google.js';
-import { AUTO_SCHEMA_PROMPT, INSTRUCTIONS_SCHEMA_PROMPT } from "../prompts.js";
+import { getExtractor } from '../../extractor/src/extractors/index.js';
+import { googleExtractor } from '../../extractor/src/extractors/google.js';
+import { AUTO_SCHEMA_PROMPT, INSTRUCTIONS_SCHEMA_PROMPT } from '../prompts.js';
 import { baseSchema } from './generation-schemas/base.js';
 import { secondarySchema } from './generation-schemas/secondary.js';
 import { cleanSchemaFields } from "./cleanSchemaFields.js";

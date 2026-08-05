@@ -59,7 +59,7 @@ export class Google implements Completion {
         {
           messages,
           model,
-          // ...convertKeysToSnakeCase(llmParams ?? null),
+          max_tokens: llmParams?.maxTokens || 16384,
         },
         {
           headers: {

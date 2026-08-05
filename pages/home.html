@@ -1,0 +1,58 @@
+<div class="topbar"><h1>Dashboard</h1><div class="topbar-right"><span class="badge-online">System Online</span></div></div>
+<div class="stats-grid" id="statsGrid">
+  <div class="stat-card"><div class="stat-label">Total Jobs</div><div class="stat-value" id="statTotalJobs">—</div></div>
+  <div class="stat-card"><div class="stat-label" style="color:var(--brand-green-dark)">Successful</div><div class="stat-value" style="color:var(--brand-green-dark)" id="statSuccess">—</div><div class="stat-sub" id="statSuccessRate"></div></div>
+  <div class="stat-card"><div class="stat-label" style="color:#DB3030">Failed</div><div class="stat-value" style="color:#DB3030" id="statFailed">—</div></div>
+  <div class="stat-card"><div class="stat-label">Total Cost</div><div class="stat-value" id="statCost">—</div></div>
+  <div class="stat-card"><div class="stat-label">API Calls</div><div class="stat-value" id="statCalls">—</div></div>
+</div>
+
+<div id="tplSection" style="display:none;margin-bottom:var(--spacing-lg)">
+  <div class="section-title" style="margin-bottom:var(--spacing-sm)">Extractions by Template</div>
+  <div class="settings-card" id="tplChart" style="padding:var(--spacing-lg)"><div style="text-align:center;color:var(--steel);padding:var(--spacing-md)" id="tplEmpty">No data</div></div>
+</div>
+
+<script>
+const currentUser = JSON.parse(localStorage.getItem('neopxl_user') || '{}');
+let chartReady = false;
+
+async function loadStats() {
+  const r = await apiFetch('/api/stats').then(d=>d.json()).catch(()=>({}));
+  document.getElementById('statTotalJobs').textContent = r.totalJobs||0;
+  document.getElementById('statSuccess').textContent = r.successful||0;
+  document.getElementById('statSuccessRate').textContent = r.totalJobs ? Math.round(r.successful/r.totalJobs*100)+'% success rate' : '';
+  document.getElementById('statFailed').textContent = r.failed||0;
+  document.getElementById('statCost').textContent = '$'+(r.totalCost||0).toFixed(4);
+  document.getElementById('statCalls').textContent = (r.totalGeminiCalls||0).toLocaleString();
+
+  const tplStats = await apiFetch('/api/stats/templates').then(d=>d.json()).catch(()=>[]);
+  if (tplStats.length) {
+    document.getElementById('tplSection').style.display = 'block';
+    document.getElementById('tplEmpty').style.display = 'none';
+    if (!chartReady) {
+      // First render — create chart skeleton
+      const max = Math.max(...tplStats.map(t=>t.count));
+      document.getElementById('tplChart').innerHTML = tplStats.map(t => `
+        <div class="chart-row">
+          <div class="chart-label">${t.name}</div>
+          <div class="chart-bar-wrap"><div class="chart-bar" style="width:${(t.count/max*100)}%"></div></div>
+          <div class="chart-count">${t.count}</div>
+        </div>`).join('');
+      chartReady = true;
+    } else {
+      // Reactive update — update bar widths and counts in place
+      const max = Math.max(...tplStats.map(t=>t.count));
+      const rows = document.querySelectorAll('#tplChart .chart-row');
+      tplStats.forEach((t, i) => {
+        if (rows[i]) {
+          rows[i].querySelector('.chart-bar').style.width = (t.count/max*100)+'%';
+          rows[i].querySelector('.chart-count').textContent = t.count;
+        }
+      });
+    }
+  }
+}
+
+loadStats();
+setInterval(loadStats, 10000);
+</script>

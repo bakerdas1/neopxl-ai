@@ -1,0 +1,397 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Documind API",
+    "description": "AI-powered document extraction. Upload a document with a schema to extract structured JSON data.\n\n## Authentication\n\nAll `/api/*` endpoints require an API key passed as header:\n\n```\nX-API-Key: your-api-key\n```\n\nOr as Bearer token:\n\n```\nAuthorization: Bearer your-api-key\n```\n\n## Workflows\n\n### Sync (direct response)\n\nUse for small files or when behind a reverse proxy without timeout limits.\n\n```\nPOST /api/extract → full result JSON (may take 1-5 min)\n```\n\n### Async (recommended via Cloudflare)\n\nSubmit, get a job ID with estimated time, then poll for the result.\n\n```\nPOST /api/extract?mode=async → { jobId, estimatedTime, estimatedTimeMs }\nGET  /api/result/{jobId}    → { status, eta, meta, data }\n```\n\n## Schema Format\n\nDocumind accepts schemas in three formats. The simplest is an array of field definitions:\n\n```json\n[\n  { \"name\": \"invoiceNumber\", \"type\": \"string\", \"description\": \"The invoice number\" },\n  { \"name\": \"totalAmount\",   \"type\": \"number\", \"description\": \"Total invoice amount\" },\n  {\n    \"name\": \"items\",\n    \"type\": \"array\",\n    \"description\": \"Line items\",\n    \"children\": [\n      { \"name\": \"description\", \"type\": \"string\", \"description\": \"Item name\" },\n      { \"name\": \"quantity\",    \"type\": \"number\", \"description\": \"Quantity\" },\n      { \"name\": \"unitPrice\",   \"type\": \"number\", \"description\": \"Price per unit\" }\n    ]\n  }\n]\n```\n\nSupported types: `string`, `number`, `boolean`, `array`, `object`, `enum`.\n\n## Filter Rules\n\nOptional post-extraction filtering. Remove or keep rows from array fields:\n\n```json\n{\n  \"dropIf\": {\n    \"arrayFieldName\": {\n      \"description\": \"^NF-\",\n      \"origin\": \"\",\n      \"netAmount\": 0\n    }\n  },\n  \"keepIf\": {\n    \"arrayFieldName\": {\n      \"date\": true,\n      \"description\": \"landing\"\n    }\n  }\n}\n```\n\n- `dropIf` rules: **string** = regex pattern, **\"\"** = field is empty, **number** = exact match\n- `keepIf` rules: **true** = field must have a value, **string** = regex pattern must match\n- Regex is case-insensitive\n- Both `dropIf` and `keepIf` can be combined\n\n## Models\n\nDefault: `gemini-2.5-flash`\n\nAvailable Google models: `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-flash-latest`, `gemini-3-flash-preview`\n\n## Supported File Types\n\nPDF, PNG, JPG/JPEG, DOCX, TXT, HTML",
+    "version": "1.0.0"
+  },
+  "servers": [
+    { "url": "https://pars2.neopxl.online", "description": "Production" },
+    { "url": "http://localhost:3022", "description": "Local" }
+  ],
+  "security": [{ "ApiKeyAuth": [] }],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      },
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "AsyncSubmitResponse": {
+        "type": "object",
+        "properties": {
+          "jobId": { "type": "string", "example": "07ec3ae67e4023b0" },
+          "status": { "type": "string", "enum": ["processing"] },
+          "estimatedTime": { "type": "string", "example": "~1 min" },
+          "estimatedTimeMs": { "type": "integer", "example": 77000 },
+          "resultUrl": { "type": "string", "example": "/api/result/07ec3ae67e4023b0" }
+        }
+      },
+      "JobStatus": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["processing", "done", "error"] },
+          "eta": { "type": "string", "example": "~1 min" },
+          "meta": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "pages": { "type": "integer" },
+              "timing": {
+                "type": "object",
+                "properties": {
+                  "total": { "type": "integer", "description": "Total time in ms" },
+                  "conversion": { "type": "integer" },
+                  "extraction": { "type": "integer" }
+                }
+              },
+              "tokens": {
+                "type": "object",
+                "properties": {
+                  "conversion": { "$ref": "#/components/schemas/TokenUsage" },
+                  "extraction": { "$ref": "#/components/schemas/TokenUsage" },
+                  "total": { "$ref": "#/components/schemas/TokenUsage" }
+                }
+              },
+              "cost": {
+                "type": "object",
+                "properties": {
+                  "total": { "type": "number" },
+                  "inputPricePerM": { "type": "number" },
+                  "outputPricePerM": { "type": "number" },
+                  "currency": { "type": "string" }
+                }
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "nullable": true,
+            "description": "Full extraction result. Present when status=done."
+          }
+        }
+      },
+      "TokenUsage": {
+        "type": "object",
+        "properties": {
+          "input": { "type": "integer" },
+          "output": { "type": "integer" }
+        }
+      },
+      "ExtractionResult": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "pages": { "type": "integer" },
+          "data": { "type": "object", "description": "The extracted structured data" },
+          "fileName": { "type": "string" },
+          "timing": { "$ref": "#/components/schemas/Timing" },
+          "tokens": { "$ref": "#/components/schemas/TokenBreakdown" },
+          "cost": { "$ref": "#/components/schemas/Cost" }
+        }
+      },
+      "MarkdownResult": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "pages": { "type": "integer" },
+          "markdown": { "type": "string" },
+          "fileName": { "type": "string" },
+          "timing": { "$ref": "#/components/schemas/Timing" },
+          "tokens": { "$ref": "#/components/schemas/TokenBreakdown" }
+        }
+      },
+      "Timing": {
+        "type": "object",
+        "properties": {
+          "total": { "type": "integer", "description": "Total milliseconds" },
+          "conversion": { "type": "integer" },
+          "extraction": { "type": "integer" }
+        }
+      },
+      "TokenBreakdown": {
+        "type": "object",
+        "properties": {
+          "conversion": { "$ref": "#/components/schemas/TokenUsage" },
+          "extraction": { "$ref": "#/components/schemas/TokenUsage" },
+          "total": { "$ref": "#/components/schemas/TokenUsage" }
+        }
+      },
+      "Cost": {
+        "type": "object",
+        "properties": {
+          "total": { "type": "number", "example": 0.020951 },
+          "inputPricePerM": { "type": "number", "example": 0.15 },
+          "outputPricePerM": { "type": "number", "example": 0.60 },
+          "currency": { "type": "string", "example": "USD" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" }
+        }
+      },
+      "SchemaField": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["string", "number", "array", "object", "boolean"] },
+          "description": { "type": "string" },
+          "children": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SchemaField" }
+          }
+        }
+      },
+      "SchemaGenerateResponse": {
+        "type": "object",
+        "properties": {
+          "jobId": { "type": "string", "example": "07ec3ae67e4023b0" },
+          "status": { "type": "string", "enum": ["processing"] },
+          "estimatedTime": { "type": "string", "example": "~1 min" },
+          "estimatedTimeMs": { "type": "integer", "example": 65000 },
+          "resultUrl": { "type": "string", "example": "/api/schema/result/07ec3ae67e4023b0" }
+        }
+      },
+      "SchemaJobStatus": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["processing", "done", "error"] },
+          "eta": { "type": "string" },
+          "schema": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SchemaField" },
+            "description": "Generated schema fields. Present when status is 'done'."
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "pages": { "type": "integer" },
+                "time": { "type": "integer" },
+                "schemaTime": { "type": "integer" },
+                "usage": { "$ref": "#/components/schemas/TokenUsage" }
+              }
+            }
+          },
+          "usage": { "$ref": "#/components/schemas/TokenUsage" },
+          "timing": { "type": "integer" },
+          "meta": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "error": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/extract": {
+      "post": {
+        "summary": "Extract data from a document",
+        "description": "Upload a document and schema to get structured data. Use ?mode=async for long-running extractions.",
+        "operationId": "extractDocument",
+        "tags": ["Extraction"],
+        "security": [{ "ApiKeyAuth": [] }, { "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "mode",
+            "in": "query",
+            "description": "Set to 'async' for async processing (recommended via Cloudflare)",
+            "schema": { "type": "string", "enum": ["async"] }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Document file (PDF, PNG, JPG, DOCX, TXT, HTML)"
+                  },
+                  "schema": {
+                    "type": "string",
+                    "description": "JSON schema in Documind format (array of field definitions). Also accepts JSON Schema format or single object. If omitted, returns raw markdown."
+                  },
+                  "template": {
+                    "type": "string",
+                    "description": "Built-in template name: bank_statement, invoice, drivers_license_uk"
+                  },
+                  "filter": {
+                    "type": "string",
+                    "description": "JSON filter rules to drop/keep rows from array fields"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sync: full extraction result. Async: job ID with estimate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/ExtractionResult" },
+                    { "$ref": "#/components/schemas/MarkdownResult" },
+                    { "$ref": "#/components/schemas/AsyncSubmitResponse" }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "description": "Bad request (missing file, invalid schema)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Missing or invalid API key", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "500": { "description": "Server error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/result/{jobId}": {
+      "get": {
+        "summary": "Check async job status",
+        "description": "Poll this endpoint to check if the extraction is complete. When status is 'done', the `data` field contains the extraction result. No need to call another endpoint.",
+        "operationId": "getJobStatus",
+        "tags": ["Extraction"],
+        "security": [{ "ApiKeyAuth": [] }, { "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Job ID from the async submit response"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job status. Processing if still running, done with data when complete.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/JobStatus" },
+                "examples": {
+                  "processing": {
+                    "summary": "Still processing",
+                    "value": { "status": "processing", "eta": "~1 min", "meta": null, "data": null }
+                  },
+                  "done": {
+                    "summary": "Extraction complete",
+                    "value": {
+                      "status": "done",
+                      "eta": "~1 min",
+                      "meta": { "pages": 6, "timing": { "total": 64900, "conversion": 45000, "extraction": 19900 }, "tokens": { "conversion": { "input": 1914, "output": 25693 }, "extraction": { "input": 25812, "output": 2293 }, "total": { "input": 27726, "output": 27986 } }, "cost": { "total": 0.020951, "inputPricePerM": 0.15, "outputPricePerM": 0.60, "currency": "USD" } },
+                      "data": { "success": true, "data": { "accountHolder": "Mikel Jonuzi", "accountNumber": "33191753", "transactions": ["..."] }, "fileName": "bank_statement" }
+                    }
+                  },
+                  "error": {
+                    "summary": "Extraction failed",
+                    "value": { "status": "error", "eta": "~1 min", "meta": { "error": "Request failed with status code 503" }, "data": null }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Missing or invalid API key" },
+          "404": { "description": "Job not found (expired or invalid ID)" }
+        }
+      }
+    },
+    "/api/schema/generate": {
+      "post": {
+        "summary": "Generate an extraction schema from a document or ZIP",
+        "description": "Upload a single document (PDF, PNG, JPG, DOCX, TXT, HTML) or a ZIP containing up to 10 documents. The service analyzes each document and returns a merged schema that can be reused in /api/extract or saved as a template.",
+        "operationId": "generateSchema",
+        "tags": ["Schema"],
+        "security": [{ "ApiKeyAuth": [] }, { "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Single document file, or a ZIP containing up to 10 valid document files."
+                  },
+                  "instructions": {
+                    "type": "string",
+                    "description": "Optional instructions describing which fields the schema should capture."
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "LLM model to use (defaults to the server model)."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Async job submitted. Poll the result URL for the generated schema.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SchemaGenerateResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. ZIPs with more than 10 documents return: Rate limit for number of files in the zip file",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "401": { "description": "Missing or invalid API key" },
+          "500": { "description": "Server error" }
+        }
+      }
+    },
+    "/api/schema/result/{jobId}": {
+      "get": {
+        "summary": "Check schema generation job status",
+        "description": "Poll this endpoint until status is 'done', at which point `schema` contains the generated field definitions.",
+        "operationId": "getSchemaJobStatus",
+        "tags": ["Schema"],
+        "security": [{ "ApiKeyAuth": [] }, { "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Job ID from the schema generate response"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job status. `schema` is present when status is 'done'.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SchemaJobStatus" }
+              }
+            }
+          },
+          "401": { "description": "Missing or invalid API key" },
+          "404": { "description": "Job not found (expired or invalid ID)" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,221 @@
+<div class="topbar">
+  <h1>Tasks</h1>
+  <button class="btn btn-primary" onclick="openExtractionModal()">
+    <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+    New Extraction
+  </button>
+</div>
+<div class="tasks-grid" id="tasksGrid">
+  <div class="skeleton-task"><div class="skeleton skeleton-badge" style="width:80px"></div><div style="flex:1"><div class="skeleton skeleton-line" style="width:60%"></div><div class="skeleton skeleton-line short" style="width:30%"></div></div><div class="skeleton-meta"><div class="skeleton skeleton-meta-item"></div><div class="skeleton skeleton-meta-item"></div><div class="skeleton skeleton-meta-item"></div><div class="skeleton skeleton-meta-item"></div></div></div>
+  <div class="skeleton-task"><div class="skeleton skeleton-badge" style="width:80px"></div><div style="flex:1"><div class="skeleton skeleton-line" style="width:50%"></div><div class="skeleton skeleton-line short" style="width:25%"></div></div><div class="skeleton-meta"><div class="skeleton skeleton-meta-item"></div><div class="skeleton skeleton-meta-item"></div><div class="skeleton skeleton-meta-item"></div><div class="skeleton skeleton-meta-item"></div></div></div>
+  <div class="skeleton-task"><div class="skeleton skeleton-badge" style="width:80px"></div><div style="flex:1"><div class="skeleton skeleton-line" style="width:55%"></div><div class="skeleton skeleton-line short" style="width:20%"></div></div><div class="skeleton-meta"><div class="skeleton skeleton-meta-item"></div><div class="skeleton skeleton-meta-item"></div><div class="skeleton skeleton-meta-item"></div><div class="skeleton skeleton-meta-item"></div></div></div>
+</div>
+
+<!-- Extraction Modal -->
+<div class="modal-overlay" id="extractModalOverlay">
+  <div class="modal" style="max-width:700px">
+    <button class="modal-close" onclick="closeExtractModal()">×</button>
+    <h3>New Extraction</h3>
+    <form id="extractForm" enctype="multipart/form-data" style="margin-top:var(--spacing-md)" onsubmit="event.preventDefault(); startExtraction()">
+      <div class="form-group"><label>Document</label><input type="file" id="fileInput" required accept=".pdf,.png,.jpg,.jpeg,.txt,.docx,.html"></div>
+      <div class="form-group"><label>Template</label><select id="templateSelect" onchange="onTemplateChange()"><option value="">None (raw markdown)</option></select></div>
+      <div class="form-group"><label>Schema (JSON)</label><textarea id="schemaText" rows="4" placeholder='[{"name":"field","type":"string","description":"..."}]'></textarea></div>
+      <div class="form-group"><label>Filter (JSON, optional)</label><textarea id="filterText" rows="3" placeholder='{"dropIf":{"arr":{"key":"pattern"}}}'></textarea></div>
+      <div style="display:flex;gap:8px">
+        <button type="submit" class="btn btn-primary" id="extractBtn">Extract</button>
+        <button type="button" class="btn btn-secondary" onclick="saveAsTemplate()">Save as Template</button>
+      </div>
+      <div id="extractStatus" style="margin-top:var(--spacing-md);display:none"></div>
+      <pre id="extractResult" style="display:none;margin-top:var(--spacing-md);background:var(--canvas-dark);color:var(--on-dark);padding:var(--spacing-md);border-radius:var(--rounded-md);font-size:12px;max-height:400px;overflow:auto"></pre>
+    </form>
+  </div>
+</div>
+
+<!-- Job Details Modal -->
+<div class="modal-overlay" id="detailsModalOverlay"><div class="modal" style="max-width:800px">
+  <button class="modal-close" onclick="closeDetailsModal()">×</button>
+  <h3 id="detailsModalTitle">Job Details</h3>
+  <div style="display:flex;gap:4px;background:var(--surface);padding:4px;border-radius:var(--rounded-md);margin-bottom:var(--spacing-md);width:fit-content">
+    <button class="settings-tab active" onclick="switchDetailsTab('data')">Extracted Data</button>
+    <button class="settings-tab" onclick="switchDetailsTab('markdown')">Markdown</button>
+    <button class="settings-tab" onclick="switchDetailsTab('schema')">Schema</button>
+  </div>
+  <div id="detailsTabData" class="settings-tab-content active" style="position:relative">
+    <button class="btn-copy" onclick="copyDetailsText('detailsTabData')" style="position:absolute;top:0;right:0;z-index:1" title="Copy">
+      <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#001E2B" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+    <pre id="detailsTabDataPre" style="min-height:60px">Loading...</pre>
+  </div>
+  <div id="detailsTabMarkdown" class="settings-tab-content" style="position:relative">
+    <button class="btn-copy" onclick="copyDetailsText('detailsTabMarkdown')" style="position:absolute;top:0;right:0;z-index:1" title="Copy">
+      <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#001E2B" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+    <pre id="detailsTabMarkdownPre" style="min-height:60px">Loading...</pre>
+  </div>
+  <div id="detailsTabSchema" class="settings-tab-content" style="position:relative">
+    <button class="btn-copy" onclick="copyDetailsText('detailsTabSchema')" style="position:absolute;top:0;right:0;z-index:1" title="Copy">
+      <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#001E2B" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+    <pre id="detailsTabSchemaPre" style="min-height:60px">Loading...</pre>
+  </div>
+</div></div>
+<div class="modal-overlay" id="tplModalOverlay">
+  <div class="modal" style="max-width:700px">
+    <button class="modal-close" onclick="closeTplModal()">×</button>
+    <h3 id="tplModalTitle">New Template</h3>
+    <form id="tplForm" onsubmit="event.preventDefault();saveTemplateHandler()" style="margin-top:var(--spacing-md)">
+      <input type="hidden" id="tplEditId">
+      <div class="form-group"><label>Template Name</label><input type="text" id="newTplName" placeholder="e.g. Landing Invoices" required></div>
+      <div class="form-group"><label>Schema (JSON)</label><textarea id="newTplSchema" rows="6" placeholder='[{"name":"field","type":"string","description":"..."}]'></textarea></div>
+      <div class="form-group"><label>Filter (JSON, optional)</label><textarea id="newTplFilter" rows="3" placeholder='{"dropIf":{"key":"pattern"}}'></textarea></div>
+      <div class="form-group"><label>Auto-Detect Keywords</label><input type="text" id="newTplKeywords" placeholder="e.g. landing, parking, take off"></div>
+      <button type="submit" class="btn btn-primary" id="tplSaveBtn">Save Template</button>
+    </form>
+  </div>
+</div>
+
+<script>
+const currentUser = JSON.parse(localStorage.getItem('neopxl_user') || '{}');
+let templatesCache=[], taskFirstRender = true;
+
+async function loadTasks() {
+  const jobs = await apiFetch('/api/tasks').then(d=>d.json()).catch(()=>[]);
+  const grid = document.getElementById('tasksGrid');
+
+  if (taskFirstRender) {
+    taskFirstRender = false;
+    grid.innerHTML = renderTaskCards(jobs) || '<div style="text-align:center;padding:var(--spacing-xxl);color:var(--steel)">No tasks yet</div>';
+    return;
+  }
+
+  // Silent refresh — update existing cards in-place
+  const existing = grid.querySelectorAll('.task-card');
+  existing.forEach(card => {
+    const id = card.dataset.jobId;
+    const job = jobs.find(j => j.id === id);
+    if (!job) { card.remove(); return; }
+    const statusEl = card.querySelector('.task-card-status');
+    const newStatus = job.status === 'done' ? 'done' : job.status === 'error' ? 'error' : 'progress';
+    const currentClass = statusEl.classList.toString();
+    const newClass = 'task-card-status ts-' + newStatus;
+    if (currentClass !== newClass) {
+      statusEl.className = newClass;
+      statusEl.innerHTML = (job.status === 'in-progress' ? '<span class="spinner"></span> ' : '') + job.status.toUpperCase();
+    }
+    // Update timing
+    const timeEl = card.querySelector('.task-card-meta-item:nth-child(2) strong');
+    if (timeEl && job.timing?.total) timeEl.textContent = (job.timing.total/1000).toFixed(1)+'s';
+    // Update cost
+    const costEl = card.querySelector('.task-card-meta-item:nth-child(3) strong');
+    if (costEl) costEl.textContent = '$'+(job.cost?.total||0).toFixed(4);
+  });
+  // Add new jobs that don't have cards yet
+  const existingIds = new Set([...existing].map(c => c.dataset.jobId));
+  const newJobs = jobs.filter(j => !existingIds.has(j.id));
+  if (newJobs.length > 0) {
+    const container = document.createElement('div');
+    container.innerHTML = renderTaskCards(newJobs);
+    while (container.firstChild) grid.insertBefore(container.firstChild, grid.firstChild);
+  }
+  // Ensure empty state
+  if (!grid.querySelector('.task-card')) {
+    grid.innerHTML = '<div style="text-align:center;padding:var(--spacing-xxl);color:var(--steel)">No tasks yet</div>';
+  }
+}
+
+function renderTaskCards(jobs) {
+  if (!jobs || !jobs.length) return '';
+  return jobs.map(j=>`
+    <div class="task-card" data-job-id="${j.id}">
+      <div class="task-card-status ts-${j.status==='done'?'done':j.status==='error'?'error':'progress'}">${j.status==='in-progress'?'<span class="spinner"></span> ':''}${j.status.toUpperCase()}</div>
+      <div class="task-card-info">
+        <div class="task-card-name" title="${j.fileName||''}">${j.fileName||'Untitled'}</div>
+        <div class="task-card-id" style="color:var(--slate);font-family:var(--font-family);display:flex;align-items:center;gap:4px">
+          <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:13px;height:13px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/></svg>
+          ${j.userName||'—'}
+        </div>
+      </div>
+      <div class="task-card-meta">
+        <div class="task-card-meta-item">Pages<br><strong>${j.pages||'—'}</strong></div>
+        <div class="task-card-meta-item">Time<br><strong>${j.timing?.total?(j.timing.total/1000).toFixed(1)+'s':'—'}</strong></div>
+        <div class="task-card-meta-item">Cost<br><strong>$${(j.cost?.total||0).toFixed(4)}</strong></div>
+        <div class="task-card-meta-item">Calls<br><strong>${j.geminiCalls||'—'}</strong></div>
+      </div>
+      <div class="task-card-actions">
+        ${j.status==='done'?`<button class="btn btn-secondary btn-sm" onclick="viewJobDetails('${j.id}')">Details</button>`:''}
+        ${j.status==='error'?`<button class="btn btn-danger btn-sm" onclick="viewJobError('${j.id}')">Error</button>`:''}
+      </div>
+    </div>`).join('');
+}
+
+async function loadTemplates() {
+  templatesCache = await apiFetch('/api/templates').then(d=>d.json()).catch(()=>[]);
+  const sel=document.getElementById('templateSelect');
+  sel.querySelectorAll('option:not(:first-child)').forEach(o=>o.remove());
+  templatesCache.forEach(t=>{const o=document.createElement('option');o.value=t.id;o.textContent=t.name;sel.appendChild(o)});
+}
+function onTemplateChange(){
+  const tpl=templatesCache.find(t=>t.id===document.getElementById('templateSelect').value);
+  if(tpl){if(tpl.schema)document.getElementById('schemaText').value=tpl.schema;if(tpl.filter)document.getElementById('filterText').value=tpl.filter}
+}
+function openExtractionModal(){document.getElementById('extractModalOverlay').style.display='flex'}
+function closeExtractModal(){document.getElementById('extractModalOverlay').style.display='none'}
+function resetExtractForm(){document.getElementById('fileInput').value='';document.getElementById('schemaText').value='';document.getElementById('filterText').value='';document.getElementById('templateSelect').value='';document.getElementById('extractStatus').style.display='none';document.getElementById('extractResult').style.display='none';document.getElementById('extractBtn').disabled=false}
+document.getElementById('extractModalOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeExtractModal()});
+
+async function startExtraction(){
+  const btn=document.getElementById('extractBtn');const status=document.getElementById('extractStatus');const result=document.getElementById('extractResult');
+  btn.disabled=true;status.style.display='block';status.innerHTML='<p>Submitting...</p>';result.style.display='none';
+  const fd=new FormData();fd.append('file',document.getElementById('fileInput').files[0]);fd.append('template',document.getElementById('templateSelect').value);fd.append('schema',document.getElementById('schemaText').value);fd.append('filter',document.getElementById('filterText').value);
+  try{
+    const r=await fetch('/extract',{method:'POST',body:fd});const job=await r.json();
+    if(!job.jobId){status.innerHTML='<p style="color:#DB3030">'+JSON.stringify(job)+'</p>';btn.disabled=false;return}
+    status.innerHTML='<p>Submitted — job <code>'+job.jobId.slice(0,16)+'</code> is processing in background. Check Tasks page.</p>';
+    setTimeout(()=>{closeExtractModal();resetExtractForm();loadTasks()},2000);
+  }catch(err){status.innerHTML='<p style="color:#DB3030">'+err.message+'</p>';btn.disabled=false}
+}
+
+function viewJobDetails(id) {
+  document.getElementById('detailsModalOverlay').style.display='flex';
+  document.getElementById('detailsModalTitle').textContent='Job '+id.slice(0,16);
+  ['Data','Markdown','Schema'].forEach(t => {
+    const pre = document.getElementById('detailsTab'+t+'Pre');
+    if (pre) pre.textContent = 'Loading...';
+  });
+  switchDetailsTab('data');
+
+  apiFetch('/api/tasks/'+id+'/data').then(d=>d.json()).then(data => {
+    const extracted = data.data || data;
+    document.getElementById('detailsTabDataPre').textContent = JSON.stringify(extracted, null, 2);
+    document.getElementById('detailsTabMarkdownPre').textContent = data.markdown || '(none)';
+  });
+  apiFetch('/api/tasks/'+id).then(d=>d.json()).then(job => {
+    let s = job.schema;
+    if (typeof s==='string') try { s=JSON.parse(s); } catch(e) {}
+    document.getElementById('detailsTabSchemaPre').textContent = JSON.stringify(s||'None', null, 2);
+  });
+}
+
+function switchDetailsTab(tab) {
+  document.querySelectorAll('#detailsModalOverlay .settings-tab').forEach(t => t.classList.toggle('active', t.textContent.toLowerCase().includes(tab)));
+  ['data','markdown','schema'].forEach(t => {
+    document.getElementById('detailsTab'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('active', t===tab);
+  });
+}
+
+function copyDetailsText(preId) {
+  const el = document.getElementById(preId+'Pre') || document.getElementById(preId);
+  navigator.clipboard.writeText(el.textContent).then(() => {});
+}
+
+function closeDetailsModal() { document.getElementById('detailsModalOverlay').style.display='none'; }
+document.getElementById('detailsModalOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeDetailsModal()});
+function viewJobError(id){showModal('Error','<pre>Loading...</pre>');apiFetch('/api/tasks/'+id).then(d=>d.json()).then(job=>{showModal('Error','<pre>'+(job.error||'Unknown').replace(/</g,'&lt;')+'</pre>')})}
+function saveAsTemplate(){const n=prompt('Template name:');if(!n)return;apiFetch('/api/templates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,schema:document.getElementById('schemaText').value.trim(),filter:document.getElementById('filterText').value.trim()})}).then(()=>{loadTemplates();alert('Saved')})}
+
+// Template CRUD
+function openTplModal(){document.getElementById('tplEditId').value='';document.getElementById('newTplName').value='';document.getElementById('newTplSchema').value='';document.getElementById('newTplFilter').value='';document.getElementById('newTplKeywords').value='';document.getElementById('tplSaveBtn').textContent='Save Template';document.getElementById('tplModalTitle').textContent='New Template';document.getElementById('tplModalOverlay').style.display='flex'}
+function closeTplModal(){document.getElementById('tplModalOverlay').style.display='none'}
+document.getElementById('tplModalOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeTplModal()});
+async function saveTemplateHandler(){const id=document.getElementById('tplEditId').value;const n=document.getElementById('newTplName').value.trim();const s=document.getElementById('newTplSchema').value.trim();const f=document.getElementById('newTplFilter').value.trim();const kw=document.getElementById('newTplKeywords').value.trim();if(!n)return alert('Name required');if(id)await apiFetch('/api/templates/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,schema:s,filter:f,keywords:kw})});else await apiFetch('/api/templates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,schema:s,filter:f,keywords:kw})});closeTplModal();loadTemplates()}
+
+loadTasks();loadTemplates();
+setInterval(loadTasks, 5000);
+</script>

@@ -1,0 +1,10 @@
+{
+  "name": "schema-service",
+  "version": "1.0.0",
+  "description": "Standalone schema generation service (autoschema, merge, zip extraction).",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "adm-zip": "^0.6.0"
+  }
+}

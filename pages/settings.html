@@ -1,0 +1,123 @@
+<div class="topbar"><h1>Settings</h1></div>
+<div class="settings-tabs" id="settingsTabs">
+  <button class="settings-tab active" data-stab="templates">Templates</button>
+  <button class="settings-tab" data-stab="ai">AI Settings</button>
+  <button class="settings-tab" data-stab="users">Users</button>
+  <button class="settings-tab" data-stab="companies">Companies</button>
+</div>
+
+<div id="stab-templates" class="settings-tab-content active">
+  <div class="settings-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--spacing-md)"><h3>Templates</h3><button class="btn btn-primary btn-sm" onclick="openTplModal()">New Template</button></div>
+    <div id="templatesList"></div>
+  </div>
+</div>
+
+<div id="stab-ai" class="settings-tab-content">
+  <div class="settings-card">
+    <h3>Gemini Configuration</h3>
+    <div class="form-group"><label>Gemini API Key</label><input type="password" id="settingGeminiKey"></div>
+    <div class="form-group"><label>Model</label>
+      <select id="settingModel">
+        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+        <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+        <option value="gemini-flash-latest">Gemini Flash Latest</option>
+        <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="saveAiSettings()">Save</button>
+  </div>
+</div>
+
+<div id="stab-users" class="settings-tab-content">
+  <div class="settings-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--spacing-md)"><h3>Users</h3><button class="btn btn-primary btn-sm" onclick="openUserModal()">New User</button></div>
+    <div id="usersList"></div>
+  </div>
+</div>
+
+<div id="stab-companies" class="settings-tab-content">
+  <div class="settings-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--spacing-md)"><h3>Companies</h3><button class="btn btn-primary btn-sm" onclick="openCompanyModal()">New Company</button></div>
+    <div id="companiesList"></div>
+  </div>
+</div>
+
+
+<!-- Modals -->
+<div class="modal-overlay" id="userModalOverlay"><div class="modal" style="max-width:500px">
+  <button class="modal-close" onclick="closeUserModal()">×</button>
+  <h3 id="userModalTitle">New User</h3>
+  <form id="userForm" onsubmit="event.preventDefault();saveUser()" style="margin-top:var(--spacing-md)">
+    <input type="hidden" id="userEditId">
+    <div class="form-group"><label>Email</label><input type="email" id="userEmail" required></div>
+    <div class="form-group"><label>Password</label><input type="password" id="userPassword" required></div>
+    <div class="form-group"><label>Role</label><select id="userRole"><option value="2">User</option><option value="1">Admin</option></select></div>
+    <div class="form-group"><label>Company</label><select id="userCompany"></select></div>
+    <button class="btn btn-primary" type="submit" id="userSaveBtn">Save User</button>
+  </form>
+</div></div>
+
+<div class="modal-overlay" id="companyModalOverlay"><div class="modal" style="max-width:400px">
+  <button class="modal-close" onclick="closeCompanyModal()">×</button>
+  <h3 id="companyModalTitle">New Company</h3>
+  <form id="companyForm" onsubmit="event.preventDefault();saveCompany()" style="margin-top:var(--spacing-md)">
+    <input type="hidden" id="companyEditId">
+    <div class="form-group"><label>Company Name</label><input type="text" id="companyName" required></div>
+    <button class="btn btn-primary" type="submit" id="companySaveBtn">Save Company</button>
+  </form>
+</div></div>
+
+<div class="modal-overlay" id="tplModalOverlay"><div class="modal" style="max-width:700px">
+  <button class="modal-close" onclick="closeTplModal()">×</button>
+  <h3 id="tplModalTitle">New Template</h3>
+  <form id="tplForm" onsubmit="event.preventDefault();saveTemplateHandler()" style="margin-top:var(--spacing-md)">
+    <input type="hidden" id="tplEditId">
+    <div class="form-group"><label>Template Name</label><input type="text" id="newTplName" placeholder="e.g. Landing Invoices" required></div>
+      <div class="form-group"><label>Schema (JSON)</label><textarea id="newTplSchema" rows="6" placeholder='[{"name":"field","type":"string","description":"..."}]'></textarea></div>
+      <div class="form-group"><label>Filter (JSON, optional)</label><textarea id="newTplFilter" rows="3" placeholder='{"dropIf":{"key":"pattern"}}'></textarea></div>
+      <div class="form-group"><label>Auto-Detect Keywords</label><input type="text" id="newTplKeywords" placeholder="e.g. landing, parking, take off, tons, aircraft registration"></div>
+    <button type="submit" class="btn btn-primary" id="tplSaveBtn">Save Template</button>
+  </form>
+</div></div>
+
+<script>
+const currentUser = JSON.parse(localStorage.getItem('neopxl_user') || '{}');
+
+// Tab switching
+document.querySelectorAll('.settings-tab').forEach(t=>{t.addEventListener('click',()=>{document.querySelectorAll('.settings-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.settings-tab-content').forEach(x=>x.classList.remove('active'));t.classList.add('active');document.getElementById('stab-'+t.dataset.stab).classList.add('active');if(t.dataset.stab==='users')loadUsers();if(t.dataset.stab==='companies')loadCompanies();if(t.dataset.stab==='templates')loadTemplateList()})});
+
+// AI Settings
+async function loadAiSettings(){const r=await apiFetch('/api/settings').then(d=>d.json()).catch(()=>({}));document.getElementById('settingModel').value=r.model||'gemini-2.5-flash'}
+async function saveAiSettings(){await apiFetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:document.getElementById('settingModel').value})});alert('Saved')}
+
+// Users
+async function loadUsers(){if(currentUser.role!==1)return;const users=await apiFetch('/api/users').then(d=>d.json()).catch(()=>[]);document.getElementById('usersList').innerHTML=users.map(u=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:var(--spacing-sm) var(--spacing-md);border-bottom:1px solid var(--hairline-soft);gap:var(--spacing-md)"><div style="flex:1;min-width:0"><strong>${u.email}</strong><div style="font-size:11px;color:var(--steel)">${u.role===1?'Admin':'User'} · ${u.company_name||'No company'}</div></div><button class="btn btn-secondary btn-sm" onclick="editUser('${u.id}')">Edit</button>${currentUser.id!==u.id?'<button class="btn btn-danger btn-sm" onclick="deleteUser(\''+u.id+'\')">Delete</button>':''}</div>`).join('')}
+function openUserModal(){document.getElementById('userEditId').value='';document.getElementById('userEmail').value='';document.getElementById('userPassword').value='';document.getElementById('userRole').value='2';loadCompaniesForSelect();document.getElementById('userModalTitle').textContent='New User';document.getElementById('userSaveBtn').textContent='Save User';document.getElementById('userModalOverlay').style.display='flex'}
+function closeUserModal(){document.getElementById('userModalOverlay').style.display='none'}
+async function editUser(id){const users=await apiFetch('/api/users').then(d=>d.json()).catch(()=>[]);const u=users.find(x=>x.id===id);if(!u)return;document.getElementById('userEditId').value=u.id;document.getElementById('userEmail').value=u.email;document.getElementById('userPassword').value='';document.getElementById('userRole').value=u.role;loadCompaniesForSelect(u.company_id);document.getElementById('userModalTitle').textContent='Edit User';document.getElementById('userSaveBtn').textContent='Update User';document.getElementById('userModalOverlay').style.display='flex'}
+async function saveUser(){const id=document.getElementById('userEditId').value;const d={email:document.getElementById('userEmail').value,role:parseInt(document.getElementById('userRole').value),company_id:document.getElementById('userCompany').value};if(document.getElementById('userPassword').value)d.password=document.getElementById('userPassword').value;if(id)await apiFetch('/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});else await apiFetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});closeUserModal();loadUsers()}
+async function deleteUser(id){if(!confirm('Delete?'))return;await apiFetch('/api/users/'+id,{method:'DELETE'});loadUsers()}
+
+// Companies
+async function loadCompanies(){if(currentUser.role!==1)return;const cos=await apiFetch('/api/companies').then(d=>d.json()).catch(()=>[]);document.getElementById('companiesList').innerHTML=cos.map(c=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:var(--spacing-sm) var(--spacing-md);border-bottom:1px solid var(--hairline-soft);gap:var(--spacing-md)"><div style="flex:1"><strong>${c.name}</strong></div><button class="btn btn-secondary btn-sm" onclick="editCompany('${c.id}','${c.name.replace(/'/g,"\\'")}')">Edit</button><button class="btn btn-danger btn-sm" onclick="deleteCompany('${c.id}')">Delete</button></div>`).join('')}
+async function loadCompaniesForSelect(p){const cos=await apiFetch('/api/companies').then(d=>d.json()).catch(()=>[]);document.getElementById('userCompany').innerHTML='<option value="">None</option>'+cos.map(c=>`<option value="${c.id}" ${c.id===p?'selected':''}>${c.name}</option>`).join('')}
+function openCompanyModal(){document.getElementById('companyEditId').value='';document.getElementById('companyName').value='';document.getElementById('companyModalTitle').textContent='New Company';document.getElementById('companyModalOverlay').style.display='flex'}
+function closeCompanyModal(){document.getElementById('companyModalOverlay').style.display='none'}
+function editCompany(id,n){document.getElementById('companyEditId').value=id;document.getElementById('companyName').value=n;document.getElementById('companyModalTitle').textContent='Edit Company';document.getElementById('companyModalOverlay').style.display='flex'}
+async function saveCompany(){const id=document.getElementById('companyEditId').value;const n=document.getElementById('companyName').value.trim();if(!n)return alert('Name required');if(id)await apiFetch('/api/companies/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})});else await apiFetch('/api/companies',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})});closeCompanyModal();loadCompanies()}
+async function deleteCompany(id){if(!confirm('Delete?'))return;await apiFetch('/api/companies/'+id,{method:'DELETE'});loadCompanies()}
+
+// Templates
+async function loadTemplateList(){const ts=await apiFetch('/api/templates').then(d=>d.json()).catch(()=>[]);document.getElementById('templatesList').innerHTML=ts.map(t=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:var(--spacing-sm) var(--spacing-md);border-bottom:1px solid var(--hairline-soft);gap:var(--spacing-md)"><div style="flex:1;min-width:0"><strong>${t.name}</strong><div style="font-size:11px;color:var(--steel)">${t.id} · ${t.schema?'Has schema':'No schema'}${t.filter?' + filter':''}${t.keywords?' · \''+t.keywords.split(',')[0]+'...\'':''}</div></div><button class="btn btn-secondary btn-sm" onclick="editTpl('${t.id}')">Edit</button><button class="btn btn-danger btn-sm" onclick="deleteTpl('${t.id}')">Delete</button></div>`).join('')}
+function openTplModal(){document.getElementById('tplEditId').value='';document.getElementById('newTplName').value='';document.getElementById('newTplSchema').value='';document.getElementById('newTplFilter').value='';document.getElementById('newTplKeywords').value='';document.getElementById('tplSaveBtn').textContent='Save Template';document.getElementById('tplModalTitle').textContent='New Template';document.getElementById('tplModalOverlay').style.display='flex'}
+function closeTplModal(){document.getElementById('tplModalOverlay').style.display='none'}
+async function editTpl(id){const ts=await apiFetch('/api/templates').then(d=>d.json()).catch(()=>[]);const t=ts.find(x=>x.id===id);if(!t)return;document.getElementById('tplEditId').value=t.id;document.getElementById('newTplName').value=t.name;document.getElementById('newTplSchema').value=t.schema||'';document.getElementById('newTplFilter').value=t.filter||'';document.getElementById('newTplKeywords').value=t.keywords||'';document.getElementById('tplSaveBtn').textContent='Update Template';document.getElementById('tplModalTitle').textContent='Edit Template';document.getElementById('tplModalOverlay').style.display='flex'}
+async function saveTemplateHandler(){const id=document.getElementById('tplEditId').value;const n=document.getElementById('newTplName').value.trim();const s=document.getElementById('newTplSchema').value.trim();const f=document.getElementById('newTplFilter').value.trim();const kw=document.getElementById('newTplKeywords').value.trim();if(!n)return alert('Name required');if(id)await apiFetch('/api/templates/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,schema:s,filter:f,keywords:kw})});else await apiFetch('/api/templates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,schema:s,filter:f,keywords:kw})});closeTplModal();loadTemplateList()}
+async function deleteTpl(id){if(!confirm('Delete?'))return;await apiFetch('/api/templates/'+id,{method:'DELETE'});loadTemplateList()}
+
+// Modal close handlers
+['userModalOverlay','companyModalOverlay','tplModalOverlay'].forEach(id=>document.getElementById(id).addEventListener('click',e=>{if(e.target===e.currentTarget){document.getElementById(id).style.display='none'}}));
+
+loadAiSettings();loadUsers();loadCompanies();loadTemplateList();
+</script>

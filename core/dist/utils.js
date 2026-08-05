@@ -28,7 +28,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.convertKeysToSnakeCase = exports.convertFileToPdf = exports.convertPdfToImages = exports.getTextFromImage = exports.downloadFile = exports.isValidUrl = exports.isString = exports.formatMarkdown = exports.encodeImageToBase64 = exports.validateLLMParams = void 0;
 const libreoffice_convert_1 = require("libreoffice-convert");
-const pdf2pic_1 = require("pdf2pic");
+const child_process_1 = require("child_process");
 const promises_1 = require("stream/promises");
 const util_1 = require("util");
 const Tesseract = __importStar(require("tesseract.js"));
@@ -37,10 +37,12 @@ const fs_extra_1 = __importDefault(require("fs-extra"));
 const mime_types_1 = __importDefault(require("mime-types"));
 const path_1 = __importDefault(require("path"));
 const sharp_1 = __importDefault(require("sharp"));
+const execAsync = (0, util_1.promisify)(child_process_1.exec);
+const execFileAsync = (0, util_1.promisify)(child_process_1.execFile);
 const convertAsync = (0, util_1.promisify)(libreoffice_convert_1.convert);
 const defaultLLMParams = {
     frequencyPenalty: 0, // OpenAI defaults to 0
-    maxTokens: 4000,
+    maxTokens: 16384,
     presencePenalty: 0, // OpenAI defaults to 0
     temperature: 0,
     topP: 1, // OpenAI defaults to 1
@@ -65,6 +67,8 @@ const encodeImageToBase64 = async (imagePath) => {
 exports.encodeImageToBase64 = encodeImageToBase64;
 // Strip out the ```markdown wrapper
 const formatMarkdown = (text) => {
+    if (!text)
+        return '';
     let formattedMarkdown = text?.trim();
     let loopCount = 0;
     const maxLoops = 3;
@@ -152,9 +156,8 @@ const getTextFromImage = async (buffer) => {
         // Get image and metadata
         const image = (0, sharp_1.default)(buffer);
         const metadata = await image.metadata();
-        // Crop to a 150px wide column in the center of the document.
-        // This section produced the highest confidence/speed tradeoffs.
-        const cropWidth = 150;
+        // Crop to a 100px wide column in the center of the document for faster OCR.
+        const cropWidth = 100;
         const cropHeight = metadata.height || 0;
         const left = Math.max(0, Math.floor((metadata.width - cropWidth) / 2));
         const top = 0;
@@ -174,10 +177,10 @@ const getTextFromImage = async (buffer) => {
 };
 exports.getTextFromImage = getTextFromImage;
 // Correct image orientation based on OCR confidence
-// Run Tesseract on 4 different orientations of the image and compare the output
+// Run Tesseract on 2 orientations — PDFs only rotate in 90° increments
 const correctImageOrientation = async (buffer) => {
     const image = (0, sharp_1.default)(buffer);
-    const rotations = [0, 90, 180, 270];
+    const rotations = [0, 90];
     const results = await Promise.all(rotations.map(async (rotation) => {
         const rotatedImageBuffer = await image
             .clone()
@@ -197,34 +200,59 @@ const correctImageOrientation = async (buffer) => {
         .toBuffer();
     return correctedImageBuffer;
 };
+const getPdfPageCount = async (localPath) => {
+    const { stdout } = await execAsync(`gs -dNOPAUSE -dBATCH -q -dQUIET -dNODISPLAY -c "(${localPath}) (r) file runpdfbegin pdfpagecount = quit"`);
+    return parseInt(stdout.trim(), 10);
+};
+const gsConvertPage = async (localPath, page, outputPath, density) => {
+    await execFileAsync("gs", [
+        "-dNOPAUSE",
+        "-dBATCH",
+        "-dQUIET",
+        "-dSAFER",
+        "-dAutoRotatePages=/PageByPage",
+        "-sDEVICE=png16m",
+        `-r${density}`,
+        "-dTextAlphaBits=4",
+        "-dGraphicsAlphaBits=4",
+        `-dFirstPage=${page}`,
+        `-dLastPage=${page}`,
+        `-sOutputFile=${outputPath}`,
+        localPath,
+    ]);
+};
 // Convert each page to a png, correct orientation, and save that image to tmp
 const convertPdfToImages = async ({ localPath, pagesToConvertAsImages, tempDir, }) => {
-    const options = {
-        density: 300,
-        format: "png",
-        height: 2048,
-        preserveAspectRatio: true,
-        saveFilename: path_1.default.basename(localPath, path_1.default.extname(localPath)),
-        savePath: tempDir,
-    };
-    const storeAsImage = (0, pdf2pic_1.fromPath)(localPath, options);
+    const saveFilename = path_1.default.basename(localPath, path_1.default.extname(localPath));
+    const density = 300;
     try {
-        const convertResults = await storeAsImage.bulk(pagesToConvertAsImages, {
-            responseType: "buffer",
-        });
-        await Promise.all(convertResults.map(async (result) => {
-            if (!result || !result.buffer) {
-                throw new Error("Could not convert page to image buffer");
+        const totalPages = await getPdfPageCount(localPath);
+        const pagesToProcess = pagesToConvertAsImages === -1
+            ? Array.from({ length: totalPages }, (_, i) => i + 1)
+            : Array.isArray(pagesToConvertAsImages)
+                ? pagesToConvertAsImages
+                : [pagesToConvertAsImages];
+        const results = await Promise.all(pagesToProcess.map(async (page) => {
+            const paddedPageNumber = page.toString().padStart(5, "0");
+            const imagePath = path_1.default.join(tempDir, `${saveFilename}_page_${paddedPageNumber}.png`);
+            await gsConvertPage(localPath, page, imagePath, density);
+            const img = (0, sharp_1.default)(imagePath);
+            const meta = await img.metadata();
+            if (meta.height && meta.height > 2048) {
+                await img.resize({ height: 2048, withoutEnlargement: true }).toFile(imagePath + '.tmp');
+                await fs_extra_1.default.rename(imagePath + '.tmp', imagePath);
             }
-            if (!result.page)
-                throw new Error("Could not identify page data");
-            const paddedPageNumber = result.page.toString().padStart(5, "0");
-            // Correct the image orientation
-            const correctedBuffer = await correctImageOrientation(result.buffer);
-            const imagePath = path_1.default.join(tempDir, `${options.saveFilename}_page_${paddedPageNumber}.png`);
-            await fs_extra_1.default.writeFile(imagePath, correctedBuffer);
+            const buffer = await fs_extra_1.default.readFile(imagePath);
+            let correctedBuffer = buffer;
+            if (process.env.CORRECT_ORIENTATION !== '0') {
+                correctedBuffer = await correctImageOrientation(buffer);
+            }
+            if (correctedBuffer !== buffer) {
+                await fs_extra_1.default.writeFile(imagePath, correctedBuffer);
+            }
+            return { page, buffer: correctedBuffer };
         }));
-        return convertResults;
+        return results;
     }
     catch (err) {
         console.error("Error during PDF conversion:", err);

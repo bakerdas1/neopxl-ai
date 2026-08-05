@@ -1,0 +1,58 @@
+{
+  "info": {
+    "name": "Documind API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "value",
+        "value": "{{api_key}}",
+        "type": "string"
+      },
+      {
+        "key": "key",
+        "value": "X-API-Key",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Extract Document",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-API-Key",
+            "value": "{{api_key}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "",
+              "description": "Document to extract (PDF, PNG, JPG, DOCX, TXT, HTML)"
+            },
+            {
+              "key": "schema",
+              "value": "[\n  {\"name\": \"invoiceNumber\", \"type\": \"string\", \"description\": \"The invoice number\"},\n  {\"name\": \"totalAmount\", \"type\": \"number\", \"description\": \"The total amount on the invoice\"},\n  {\n    \"name\": \"items\",\n    \"type\": \"array\",\n    \"description\": \"Line items in the invoice\",\n    \"children\": [\n      {\"name\": \"description\", \"type\": \"string\", \"description\": \"Item description\"},\n      {\"name\": \"quantity\", \"type\": \"number\", \"description\": \"Item quantity\"},\n      {\"name\": \"unitPrice\", \"type\": \"number\", \"description\": \"Price per unit\"},\n      {\"name\": \"total\", \"type\": \"number\", \"description\": \"Line total\"}\n    ]\n  }\n]",
+              "type": "text",
+              "description": "JSON schema in Documind format. Array of field definitions with name, type, description, and optional children."
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/api/extract",
+          "host": ["{{base_url}}"],
+          "path": ["api", "extract"]
+        }
+      }
+    }
+  ]
+}

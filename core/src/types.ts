@@ -11,6 +11,10 @@ export enum LocalModels {
 }
 
 export enum GoogleModels {
+  GEMINI_3_FLASH = "gemini-3-flash-preview",
+  GEMINI_FLASH_LATEST = "gemini-flash-latest",
+  GEMINI_2_5_FLASH = "gemini-2.5-flash",
+  GEMINI_2_5_PRO = "gemini-2.5-pro",
   GEMINI_2_FLASH = "gemini-2.0-flash-001",
   GEMINI_2_FLASH_LITE = "gemini-2.0-flash-lite-preview-02-05",
   GEMINI_1_5_FLASH = "gemini-1.5-flash",

@@ -15,6 +15,10 @@ var LocalModels;
 })(LocalModels || (exports.LocalModels = LocalModels = {}));
 var GoogleModels;
 (function (GoogleModels) {
+    GoogleModels["GEMINI_3_FLASH"] = "gemini-3-flash-preview";
+    GoogleModels["GEMINI_FLASH_LATEST"] = "gemini-flash-latest";
+    GoogleModels["GEMINI_2_5_FLASH"] = "gemini-2.5-flash";
+    GoogleModels["GEMINI_2_5_PRO"] = "gemini-2.5-pro";
     GoogleModels["GEMINI_2_FLASH"] = "gemini-2.0-flash-001";
     GoogleModels["GEMINI_2_FLASH_LITE"] = "gemini-2.0-flash-lite-preview-02-05";
     GoogleModels["GEMINI_1_5_FLASH"] = "gemini-1.5-flash";

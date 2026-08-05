@@ -1,0 +1,191 @@
+<div class="topbar"><h1>Schema Generator</h1></div>
+
+<div class="settings-card">
+  <h3>Generate an extraction schema</h3>
+  <p>Drop a single ZIP, or multiple documents (PDF, PNG, JPG, DOCX, TXT, HTML). We analyze the documents and auto-generate a JSON schema you can reuse for extraction. ZIPs are limited to 10 documents inside.</p>
+
+  <div class="form-group">
+    <label>Documents</label>
+    <div id="dropzone" style="border:2px dashed var(--hairline-strong);border-radius:var(--rounded-lg);padding:var(--spacing-xxl);text-align:center;cursor:pointer;transition:all 150ms;background:var(--surface)"
+      onclick="document.getElementById('fileInput').click()">
+      <p style="color:var(--slate)">Drop a <strong>ZIP</strong> or <strong>multiple documents</strong> here, or click to browse</p>
+      <p style="font-size:12px;color:var(--stone);margin-top:6px">One ZIP (up to 10 files) — or up to 10 individual documents</p>
+    </div>
+    <input type="file" id="fileInput" multiple accept=".zip,.pdf,.png,.jpg,.jpeg,.txt,.docx,.html" style="display:none">
+    <div id="fileList" style="margin-top:var(--spacing-sm);display:flex;flex-direction:column;gap:4px"></div>
+  </div>
+
+  <div class="form-group">
+    <label for="instructions">Instructions (optional)</label>
+    <textarea id="instructions" placeholder="e.g. Extract the invoice number, line items with description, quantity and net amount, plus total."></textarea>
+  </div>
+
+  <button class="btn btn-primary" id="generateBtn" onclick="generateSchema()">Generate Schema</button>
+
+  <div id="statusBar" style="display:none;margin-top:var(--spacing-md);padding:10px 14px;border-radius:var(--rounded-md);font-size:13px;font-weight:600"></div>
+</div>
+
+<div class="settings-card" id="resultCard" style="display:none">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--spacing-md);margin-bottom:var(--spacing-md)">
+    <h3 style="margin-bottom:0">Generated Schema</h3>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary btn-sm" onclick="copySchema()">Copy</button>
+      <button class="btn btn-primary btn-sm" onclick="openSaveTemplate()">Save as Template</button>
+    </div>
+  </div>
+  <pre id="schemaOutput" style="background:#0A1A22;color:var(--brand-green);padding:var(--spacing-md);border-radius:var(--rounded-md);font-size:12px;line-height:1.5;overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:480px;overflow-y:auto"></pre>
+  <div id="resultMeta" style="font-size:12px;color:var(--steel);margin-top:var(--spacing-sm)"></div>
+</div>
+
+<div class="modal-overlay" id="saveTemplateOverlay"><div class="modal" style="max-width:480px">
+  <button class="modal-close" onclick="closeSaveTemplate()">×</button>
+  <h3>Save as Template</h3>
+  <form onsubmit="event.preventDefault();saveTemplate()" style="margin-top:var(--spacing-md)">
+    <div class="form-group"><label>Template Name</label><input type="text" id="templateName" placeholder="e.g. Landing Invoice" required></div>
+    <button type="submit" class="btn btn-primary">Save Template</button>
+    <span id="saveTemplateStatus" style="margin-left:var(--spacing-sm);font-size:13px;color:var(--brand-green-dark)"></span>
+  </form>
+</div></div>
+
+<style>
+#dropzone:hover, #dropzone.dragover { border-color: var(--brand-green-dark); background: var(--surface-feature); }
+.file-chip { display:flex; align-items:center; justify-content:space-between; background:var(--canvas); border:1px solid var(--hairline); border-radius:var(--rounded-md); padding:6px 12px; font-size:13px; }
+.file-chip .fname { font-weight:500; }
+.file-chip .fsize { color:var(--steel); font-size:12px; }
+.file-chip .fremove { color:var(--steel); cursor:pointer; font-size:15px; padding:0 4px; }
+.file-chip .fremove:hover { color:#DB3030; }
+</style>
+
+<script>
+let selectedFiles = [];
+let generatedSchema = null;
+let currentJobId = null;
+let pollTimer = null;
+
+const fileInput = document.getElementById('fileInput');
+const dropzone = document.getElementById('dropzone');
+const MAX_FILES = 10;
+
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  addFiles([...e.dataTransfer.files]);
+});
+fileInput.addEventListener('change', () => { addFiles([...fileInput.files]); fileInput.value = ''; });
+
+function addFiles(files) {
+  for (const f of files) {
+    const ext = f.name.split('.').pop().toLowerCase();
+    if (!['zip','pdf','png','jpg','jpeg','txt','docx','html'].includes(ext)) continue;
+    if (selectedFiles.some(s => s.name === f.name && s.size === f.size)) continue;
+    selectedFiles.push(f);
+  }
+  if (selectedFiles.length > MAX_FILES) {
+    showStatus('error', `Too many files. Maximum is ${MAX_FILES} (or one ZIP containing up to ${MAX_FILES}).`);
+    selectedFiles = selectedFiles.slice(0, MAX_FILES);
+  }
+  renderFiles();
+}
+
+function renderFiles() {
+  document.getElementById('fileList').innerHTML = selectedFiles.map((f, i) => `
+    <div class="file-chip">
+      <span class="fname">${f.name}</span>
+      <span style="display:flex;align-items:center;gap:8px">
+        <span class="fsize">${(f.size/1024).toFixed(1)} KB</span>
+        <span class="fremove" onclick="removeFile(${i})">×</span>
+      </span>
+    </div>`).join('');
+}
+
+function removeFile(i) { selectedFiles.splice(i, 1); renderFiles(); }
+
+function showStatus(type, msg) {
+  const el = document.getElementById('statusBar');
+  el.style.display = 'block';
+  el.style.background = type === 'error' ? 'rgba(219,48,48,0.08)' : type === 'done' ? 'rgba(0,237,100,0.12)' : 'rgba(0,104,74,0.06)';
+  el.style.color = type === 'error' ? '#DB3030' : type === 'done' ? 'var(--brand-green-dark)' : 'var(--slate)';
+  el.textContent = msg;
+}
+
+async function buildUpload() {
+  const fd = new FormData();
+  if (selectedFiles.length === 1) {
+    fd.append('file', selectedFiles[0]);
+  } else {
+    if (typeof JSZip === 'undefined') throw new Error('ZIP library failed to load — try uploading a single ZIP file instead.');
+    const zip = new JSZip();
+    selectedFiles.forEach(f => zip.file(f.name, f));
+    const blob = await zip.generateAsync({ type: 'blob' });
+    fd.append('file', blob, 'documents.zip');
+  }
+  const instructions = document.getElementById('instructions').value.trim();
+  if (instructions) fd.append('instructions', instructions);
+  return fd;
+}
+
+async function generateSchema() {
+  if (!selectedFiles.length) { showStatus('error', 'Add at least one document first.'); return; }
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true;
+  showStatus('info', 'Submitting documents...');
+  try {
+    const fd = await buildUpload();
+    const r = await apiFetch('/api/schema/generate', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (data.error) { showStatus('error', data.error); btn.disabled = false; return; }
+    currentJobId = data.jobId;
+    showStatus('info', `Processing documents... (${data.estimatedTime})`);
+    pollTimer = setInterval(pollJob, 2000);
+  } catch (e) {
+    showStatus('error', 'Submit failed: ' + e.message);
+    btn.disabled = false;
+  }
+}
+
+async function pollJob() {
+  if (!currentJobId) return;
+  const r = await apiFetch('/api/schema/result/' + currentJobId);
+  const d = await r.json();
+  if (d.status === 'error') {
+    clearInterval(pollTimer);
+    document.getElementById('generateBtn').disabled = false;
+    showStatus('error', 'Schema generation failed: ' + (d.meta?.error || 'Unknown error'));
+  } else if (d.status === 'done') {
+    clearInterval(pollTimer);
+    document.getElementById('generateBtn').disabled = false;
+    generatedSchema = d.schema;
+    const files = (d.files || []).map(f => f.name).join(', ');
+    const totalMs = d.timing || 0;
+    document.getElementById('schemaOutput').textContent = JSON.stringify(generatedSchema, null, 2);
+    document.getElementById('resultMeta').textContent = `Files analyzed: ${files} · ${((totalMs)/1000).toFixed(1)}s`;
+    document.getElementById('resultCard').style.display = 'block';
+    showStatus('done', 'Schema generated successfully.');
+  }
+}
+
+function copySchema() {
+  if (!generatedSchema) return;
+  navigator.clipboard.writeText(JSON.stringify(generatedSchema, null, 2)).then(() => showStatus('done', 'Schema copied to clipboard.'));
+}
+
+function openSaveTemplate() { document.getElementById('templateName').value=''; document.getElementById('saveTemplateStatus').textContent=''; document.getElementById('saveTemplateOverlay').style.display='flex'; }
+function closeSaveTemplate() { document.getElementById('saveTemplateOverlay').style.display='none'; }
+document.getElementById('saveTemplateOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeSaveTemplate(); });
+
+async function saveTemplate() {
+  const name = document.getElementById('templateName').value.trim();
+  if (!name || !generatedSchema) return;
+  const r = await apiFetch('/api/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, schema: JSON.stringify(generatedSchema) }) });
+  if (r.ok) {
+    document.getElementById('saveTemplateStatus').textContent = '✓ Saved';
+    setTimeout(closeSaveTemplate, 1200);
+  } else {
+    const e = await r.json();
+    document.getElementById('saveTemplateStatus').textContent = 'Error: ' + (e.error || 'failed');
+  }
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>

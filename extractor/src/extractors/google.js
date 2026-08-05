@@ -35,6 +35,7 @@ const modelToUse = genAI.getGenerativeModel({
     generationConfig: {
       responseMimeType: "application/json",
       responseSchema: jsonSchema,
+      maxOutputTokens: 65536,
       },
     });
     
@@ -42,8 +43,22 @@ const result = await modelToUse.generateContent(
     markdown,
   );
 
-//console.log(result.response.text());
-const event = JSON.parse(result.response.text())
-return event;
+const responseText = result.response.text();
+let event;
+try {
+  event = JSON.parse(responseText);
+} catch (parseErr) {
+  console.error('Gemini JSON parse failed. Length:', responseText.length, 'Last 200:', JSON.stringify(responseText.slice(-200)));
+  throw parseErr;
+}
+const usage = result.response.usageMetadata || {};
+return {
+    data: event,
+    usage: {
+        inputTokens: usage.promptTokenCount || 0,
+        outputTokens: usage.candidatesTokenCount || 0,
+        totalTokens: usage.totalTokenCount || 0,
+    }
+};
 }
 

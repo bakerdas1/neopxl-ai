@@ -48,7 +48,7 @@ class Google {
             const response = await axios_1.default.post("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
                 messages,
                 model,
-                // ...convertKeysToSnakeCase(llmParams ?? null),
+                max_tokens: llmParams?.maxTokens || 16384,
             }, {
                 headers: {
                     Authorization: `Bearer ${apiKey}`,
