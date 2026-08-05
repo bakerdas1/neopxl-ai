@@ -8,7 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 import { tmpdir } from 'os';
 import crypto from 'crypto';
 import pLimit from 'p-limit';
-import { loadStore, saveStore, addJob, updateJob, getStats, getRecentJobs, getJobs, getTemplates, addTemplate, updateTemplate, deleteTemplate, getUsers, getUserByEmail, addUser, updateUser, deleteUser, getCompanies, addCompany, updateCompany, deleteCompany, createApiKey, getUserApiKeys, revokeApiKey } from './store.mjs';
+import { loadStore, addJob, updateJob, getStats, getRecentJobs, getJobs, getTemplates, addTemplate, updateTemplate, deleteTemplate, getUsers, getUserByEmail, addUser, updateUser, deleteUser, getCompanies, addCompany, updateCompany, deleteCompany, createApiKey, getUserApiKeys, revokeApiKey } from './store.mjs';
 import { hashPassword, comparePassword, signToken, authGuard } from './auth.mjs';
 import 'dotenv/config';
 import { documind } from 'core';
@@ -16,7 +16,7 @@ import { generateMarkdownDocument } from './extractor/src/utils/generateMarkdown
 import { convertToZodSchema } from './extractor/src/utils/convertToZodSchema.js';
 import { getExtractor } from './extractor/src/extractors/index.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { BASE_EXTRACTION_PROMPT, CLASSIFY_DOCUMENT_PROMPT } from './extractor/src/prompts.js';
+import { BASE_EXTRACTION_PROMPT } from './extractor/src/prompts.js';
 import { templates } from './extractor/src/services/templates.js';
 import { generateSchema } from './schema-service/generateSchema.js';
 import { extractZip, RATE_LIMIT_MESSAGE } from './schema-service/extractZip.js';
