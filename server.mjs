@@ -23,6 +23,7 @@ import { extractZip, RATE_LIMIT_MESSAGE } from './schema-service/extractZip.js';
 
 const PORT = 3022;
 const ALLOWED = ['pdf', 'png', 'jpg', 'jpeg', 'txt', 'docx', 'html'];
+const SCHEMA_ALLOWED = [...ALLOWED, 'zip'];
 const jobs = new Map();
 const schemaJobs = new Map();
 
@@ -1199,8 +1200,8 @@ function checkAuth(req, res) {
         return sendJSON(res, 400, { error: 'File is required' });
       }
       const ext = extname(file.filename).slice(1).toLowerCase();
-      if (!ALLOWED.includes(ext)) {
-        return sendJSON(res, 400, { error: `Unsupported file type: ${ext}. Allowed: ${ALLOWED.join(', ')}` });
+      if (!SCHEMA_ALLOWED.includes(ext)) {
+        return sendJSON(res, 400, { error: `Unsupported file type: ${ext}. Allowed: ${SCHEMA_ALLOWED.join(', ')}` });
       }
 
       const model = fields.model || process.env.MODEL || 'gemini-2.5-flash';

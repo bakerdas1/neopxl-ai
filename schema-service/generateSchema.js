@@ -5,22 +5,24 @@ import { mergeSchemas } from './mergeSchemas.js';
 import pLimit from 'p-limit';
 
 const CONCURRENCY = 3;
-const MAX_AUTOSCHEMA_CHARS = 30000;
-const RETRY_AUTOSCHEMA_CHARS = 10000;
+const SLICES = [30000, 10000, 4000];
 
 function isTruncatedJsonError(err) {
   return err instanceof SyntaxError || /JSON|Unexpected end/.test(err.message || '');
 }
 
 async function generateSchemaFor(markdown, model, autoSchemaArg) {
-  try {
-    const slice = markdown.length > MAX_AUTOSCHEMA_CHARS ? markdown.slice(0, MAX_AUTOSCHEMA_CHARS) : markdown;
-    return await autogenerateSchema(slice, model, autoSchemaArg);
-  } catch (err) {
-    if (!isTruncatedJsonError(err) || markdown.length <= RETRY_AUTOSCHEMA_CHARS) throw err;
-    const retrySlice = markdown.slice(0, RETRY_AUTOSCHEMA_CHARS);
-    return await autogenerateSchema(retrySlice, model, autoSchemaArg);
+  const sizes = [...new Set(SLICES.map((n) => Math.min(n, markdown.length)))];
+  let lastErr;
+  for (let i = 0; i < sizes.length; i++) {
+    try {
+      return await autogenerateSchema(markdown.slice(0, sizes[i]), model, autoSchemaArg, i > 0);
+    } catch (err) {
+      lastErr = err;
+      if (!isTruncatedJsonError(err)) throw err;
+    }
   }
+  throw lastErr;
 }
 
 /**

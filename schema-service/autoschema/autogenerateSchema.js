@@ -6,9 +6,9 @@ import { secondarySchema } from './generation-schemas/secondary.js';
 import { cleanSchemaFields } from "./cleanSchemaFields.js";
 import { z } from 'zod';
 
-export async function autogenerateSchema(markdown, model, autoSchema) {
+export async function autogenerateSchema(markdown, model, autoSchema, strict = false) {
   if (autoSchema === true) {
-    return await blanketSchema(markdown, model);
+    return await blanketSchema(markdown, model, strict);
   }
 
   if (
@@ -28,21 +28,22 @@ export async function autogenerateSchema(markdown, model, autoSchema) {
     return await instructionBasedSchema(
       markdown,
       model,
-      autoSchema.instructions
+      autoSchema.instructions,
+      strict
     );
   }
 
-  return await blanketSchema(markdown, model);
+  return await blanketSchema(markdown, model, strict);
 }
 
-async function blanketSchema(markdown, model) {
+async function blanketSchema(markdown, model, strict = false) {
   const extraction = getExtractor(model);
   const schemaToUse = extraction === googleExtractor ? secondarySchema : baseSchema;
   
   const result = await extraction({
     markdown,
     zodSchema: schemaToUse,
-    prompt: AUTO_SCHEMA_PROMPT(markdown),
+    prompt: AUTO_SCHEMA_PROMPT(markdown, strict),
     model: model, 
   });
 
@@ -55,7 +56,7 @@ async function blanketSchema(markdown, model) {
   return cleanSchemaFields(fields);
 }
 
-async function instructionBasedSchema(markdown, model, instructions) {
+async function instructionBasedSchema(markdown, model, instructions, strict = false) {
 
   const instructionsZod = z.object({
     fields: z.array(z.string()),
@@ -85,7 +86,7 @@ async function instructionBasedSchema(markdown, model, instructions) {
   const result = await extraction({
     markdown,
     zodSchema: schemaToUse,
-    prompt: INSTRUCTIONS_SCHEMA_PROMPT(markdown, data),
+    prompt: INSTRUCTIONS_SCHEMA_PROMPT(markdown, data, strict),
     model: model,
   });
 
