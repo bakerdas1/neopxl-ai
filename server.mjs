@@ -349,6 +349,12 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === '/favicon.ico') {
+    res.writeHead(200, { 'Content-Type': 'image/x-icon' });
+    res.end(readFileSync(join(__dirname, 'favicon.ico')));
+    return;
+  }
+
   if (url.pathname === '/login') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(readFileSync(join(__dirname, 'login.html'), 'utf-8'));
