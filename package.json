@@ -27,7 +27,6 @@
   },
   "homepage": "https://documind.xyz",
   "dependencies": {
-    "adm-zip": "^0.6.0",
     "axios": "^1.7.7",
     "bcrypt": "^6.0.0",
     "child_process": "^1.0.2",

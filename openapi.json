@@ -314,8 +314,8 @@
     },
     "/api/schema/generate": {
       "post": {
-        "summary": "Generate an extraction schema from a document or ZIP",
-        "description": "Upload a single document (PDF, PNG, JPG, DOCX, TXT, HTML) or a ZIP containing up to 10 documents. The service analyzes each document and returns a merged schema that can be reused in /api/extract or saved as a template.",
+        "summary": "Generate an extraction schema from one or more documents",
+        "description": "Upload up to 10 documents (PDF, DOCX, PNG, JPG). The service analyzes each document and returns a merged schema that can be reused in /api/extract or saved as a template.",
         "operationId": "generateSchema",
         "tags": ["Schema"],
         "security": [{ "ApiKeyAuth": [] }, { "BearerAuth": [] }],
@@ -328,9 +328,9 @@
                 "required": ["file"],
                 "properties": {
                   "file": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "Single document file, or a ZIP containing up to 10 valid document files."
+                    "type": "array",
+                    "items": { "type": "string", "format": "binary" },
+                    "description": "One or more document files (PDF, DOCX, PNG, JPG). Up to 10 files per request."
                   },
                   "instructions": {
                     "type": "string",
@@ -355,7 +355,7 @@
             }
           },
           "400": {
-            "description": "Bad request. ZIPs with more than 10 documents return: Rate limit for number of files in the zip file",
+            "description": "Bad request. More than 10 files return: Rate limit for number of files: maximum 10 files",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
           },
           "401": { "description": "Missing or invalid API key" },

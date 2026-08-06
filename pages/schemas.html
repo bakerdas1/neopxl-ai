@@ -2,16 +2,16 @@
 
 <div class="settings-card">
   <h3>Generate an extraction schema</h3>
-  <p>Drop a single ZIP, or multiple documents (PDF, PNG, JPG, DOCX, TXT, HTML). We analyze the documents and auto-generate a JSON schema you can reuse for extraction. ZIPs are limited to 10 documents inside.</p>
+  <p>Drop up to 10 documents (PDF, DOCX, PNG, JPG). We analyze the documents and auto-generate a JSON schema you can reuse for extraction.</p>
 
   <div class="form-group">
     <label>Documents</label>
     <div id="dropzone" style="border:2px dashed var(--hairline-strong);border-radius:var(--rounded-lg);padding:var(--spacing-xxl);text-align:center;cursor:pointer;transition:all 150ms;background:var(--surface)"
       onclick="document.getElementById('fileInput').click()">
-      <p style="color:var(--slate)">Drop a <strong>ZIP</strong> or <strong>multiple documents</strong> here, or click to browse</p>
-      <p style="font-size:12px;color:var(--stone);margin-top:6px">One ZIP (up to 10 files) — or up to 10 individual documents</p>
+      <p style="color:var(--slate)">Drop <strong>multiple documents</strong> here, or click to browse</p>
+      <p style="font-size:12px;color:var(--stone);margin-top:6px">PDF, DOCX, PNG, JPG — up to 10 documents</p>
     </div>
-    <input type="file" id="fileInput" multiple accept=".zip,.pdf,.png,.jpg,.jpeg,.txt,.docx,.html" style="display:none">
+    <input type="file" id="fileInput" multiple accept=".pdf,.docx,.png,.jpg,.jpeg" style="display:none">
     <div id="fileList" style="margin-top:var(--spacing-sm);display:flex;flex-direction:column;gap:4px"></div>
   </div>
 
@@ -78,12 +78,12 @@ fileInput.addEventListener('change', () => { addFiles([...fileInput.files]); fil
 function addFiles(files) {
   for (const f of files) {
     const ext = f.name.split('.').pop().toLowerCase();
-    if (!['zip','pdf','png','jpg','jpeg','txt','docx','html'].includes(ext)) continue;
+    if (!['pdf','png','jpg','jpeg','docx'].includes(ext)) continue;
     if (selectedFiles.some(s => s.name === f.name && s.size === f.size)) continue;
     selectedFiles.push(f);
   }
   if (selectedFiles.length > MAX_FILES) {
-    showStatus('error', `Too many files. Maximum is ${MAX_FILES} (or one ZIP containing up to ${MAX_FILES}).`);
+    showStatus('error', `Too many files. Maximum is ${MAX_FILES} documents.`);
     selectedFiles = selectedFiles.slice(0, MAX_FILES);
   }
   renderFiles();
@@ -112,15 +112,7 @@ function showStatus(type, msg) {
 
 async function buildUpload() {
   const fd = new FormData();
-  if (selectedFiles.length === 1) {
-    fd.append('file', selectedFiles[0]);
-  } else {
-    if (typeof JSZip === 'undefined') throw new Error('ZIP library failed to load — try uploading a single ZIP file instead.');
-    const zip = new JSZip();
-    selectedFiles.forEach(f => zip.file(f.name, f));
-    const blob = await zip.generateAsync({ type: 'blob' });
-    fd.append('file', blob, 'documents.zip');
-  }
+  selectedFiles.forEach(f => fd.append('file', f));
   const instructions = document.getElementById('instructions').value.trim();
   if (instructions) fd.append('instructions', instructions);
   return fd;
@@ -188,4 +180,3 @@ async function saveTemplate() {
   }
 }
 </script>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>

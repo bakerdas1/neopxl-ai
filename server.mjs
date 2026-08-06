@@ -19,11 +19,11 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { BASE_EXTRACTION_PROMPT } from './extractor/src/prompts.js';
 import { templates } from './extractor/src/services/templates.js';
 import { generateSchema } from './schema-service/generateSchema.js';
-import { extractZip, RATE_LIMIT_MESSAGE } from './schema-service/extractZip.js';
 
 const PORT = 3022;
 const ALLOWED = ['pdf', 'png', 'jpg', 'jpeg', 'txt', 'docx', 'html'];
-const SCHEMA_ALLOWED = [...ALLOWED, 'zip'];
+const SCHEMA_ALLOWED = ['pdf', 'docx', 'png', 'jpg', 'jpeg'];
+const MAX_SCHEMA_FILES = 10;
 const jobs = new Map();
 const schemaJobs = new Map();
 
@@ -1176,7 +1176,7 @@ function checkAuth(req, res) {
       });
       const raw = buf.toString('latin1');
       const parts = raw.split(`--${boundary}`).filter(p => p.includes('name='));
-      let file = null;
+      const files = [];
       const fields = {};
 
       for (const part of parts) {
@@ -1190,39 +1190,34 @@ function checkAuth(req, res) {
         const fn = header.match(/filename="([^"]*)"/)?.[1];
         if (fn !== undefined) {
           const dataStr = body.endsWith('\r\n') ? body.slice(0, -2) : body;
-          file = { data: Buffer.from(dataStr, 'latin1'), filename: fn || 'file' };
+          files.push({ data: Buffer.from(dataStr, 'latin1'), filename: fn || 'file' });
         } else if (name) {
           fields[name] = body.replace(/\r?\n$/, '');
         }
       }
 
-      if (!file || !file.data || !file.filename) {
+      if (!files.length) {
         return sendJSON(res, 400, { error: 'File is required' });
       }
-      const ext = extname(file.filename).slice(1).toLowerCase();
-      if (!SCHEMA_ALLOWED.includes(ext)) {
-        return sendJSON(res, 400, { error: `Unsupported file type: ${ext}. Allowed: ${SCHEMA_ALLOWED.join(', ')}` });
+      if (files.length > MAX_SCHEMA_FILES) {
+        return sendJSON(res, 400, { error: `Rate limit for number of files: maximum ${MAX_SCHEMA_FILES} files` });
+      }
+      for (const f of files) {
+        const ext = extname(f.filename).slice(1).toLowerCase();
+        if (!SCHEMA_ALLOWED.includes(ext)) {
+          return sendJSON(res, 400, { error: `Unsupported file type: ${ext}. Allowed: ${SCHEMA_ALLOWED.join(', ')}` });
+        }
       }
 
       const model = fields.model || process.env.MODEL || 'gemini-2.5-flash';
       const instructions = (fields.instructions || '').trim() || undefined;
 
       tmpDir = await mkdtemp(join(tmpdir(), 'documind-schema-'));
-      const uploadPath = join(tmpDir, file.filename);
-      await writeFile(uploadPath, file.data);
-
-      let docFiles;
-      if (ext === 'zip') {
-        try {
-          docFiles = await extractZip(uploadPath, tmpDir);
-        } catch (zipErr) {
-          if (zipErr.message === RATE_LIMIT_MESSAGE) {
-            return sendJSON(res, 400, { error: RATE_LIMIT_MESSAGE });
-          }
-          throw zipErr;
-        }
-      } else {
-        docFiles = [{ name: file.filename, path: uploadPath }];
+      const docFiles = [];
+      for (const f of files) {
+        const uploadPath = join(tmpDir, f.filename);
+        await writeFile(uploadPath, f.data);
+        docFiles.push({ name: f.filename, path: uploadPath });
       }
 
       const jobId = crypto.randomBytes(8).toString('hex');
@@ -1230,13 +1225,13 @@ function checkAuth(req, res) {
       const eta = estimatedMs < 60000 ? `~${Math.round(estimatedMs / 1000)}s` : `~${Math.round(estimatedMs / 60000)} min`;
 
       schemaJobs.set(jobId, { status: 'processing', eta, fileCount: docFiles.length });
-      addJob(jobId, { fileName: file.filename, status: 'in-progress', schema: null, filter: null, templateName: 'schema-generation', apiKeyName: apiUser._apiKeyName || null, createdAt: Date.now() }, apiUser.id);
+      addJob(jobId, { fileName: files[0].filename, status: 'in-progress', schema: null, filter: null, templateName: 'schema-generation', apiKeyName: apiUser._apiKeyName || null, createdAt: Date.now() }, apiUser.id);
 
       (async () => {
         try {
           const result = await generateSchema({ files: docFiles, model, instructions });
           schemaJobs.set(jobId, { status: 'done', ...result });
-          updateJob(jobId, { status: 'done', pages: result.files.reduce((s, f) => s + (f.pages || 0), 0), timing: { total: result.timing }, tokens: { extraction: result.usage, total: result.usage }, geminiCalls: result.files.length * 2, resultData: { success: true, schema: result.schema }, fileName: file.filename });
+          updateJob(jobId, { status: 'done', pages: result.files.reduce((s, f) => s + (f.pages || 0), 0), timing: { total: result.timing }, tokens: { extraction: result.usage, total: result.usage }, geminiCalls: result.files.length * 2, resultData: { success: true, schema: result.schema }, fileName: files[0].filename });
         } catch (jobErr) {
           console.error(jobErr);
           schemaJobs.set(jobId, { status: 'error', meta: { error: jobErr.message } });
