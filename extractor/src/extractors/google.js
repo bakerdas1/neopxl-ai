@@ -1,9 +1,10 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { zodToJsonSchema } from "zod-to-json-schema";
+import { jsonrepair } from "jsonrepair";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-export const googleExtractor = async ({ markdown, zodSchema, prompt, model }) => {
+export const googleExtractor = async ({ markdown, zodSchema, prompt, model, repairJson = false }) => {
     if (!process.env.GEMINI_API_KEY) {
       throw new Error("Missing GEMINI_API_KEY");
     }
@@ -49,7 +50,16 @@ try {
   event = JSON.parse(responseText);
 } catch (parseErr) {
   console.error('Gemini JSON parse failed. Length:', responseText.length, 'Last 200:', JSON.stringify(responseText.slice(-200)));
-  throw parseErr;
+  if (repairJson) {
+    try {
+      event = JSON.parse(jsonrepair(responseText));
+      console.log('Gemini JSON repaired. Length:', responseText.length);
+    } catch {
+      throw parseErr;
+    }
+  } else {
+    throw parseErr;
+  }
 }
 const usage = result.response.usageMetadata || {};
 return {

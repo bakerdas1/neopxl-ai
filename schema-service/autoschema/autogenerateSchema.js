@@ -44,7 +44,8 @@ async function blanketSchema(markdown, model, strict = false) {
     markdown,
     zodSchema: schemaToUse,
     prompt: AUTO_SCHEMA_PROMPT(markdown, strict),
-    model: model, 
+    model: model,
+    repairJson: true,
   });
 
   const fields = result?.data !== undefined ? result.data?.fields : result?.fields;
@@ -88,6 +89,7 @@ async function instructionBasedSchema(markdown, model, instructions, strict = fa
     zodSchema: schemaToUse,
     prompt: INSTRUCTIONS_SCHEMA_PROMPT(markdown, data, strict),
     model: model,
+    repairJson: true,
   });
 
   const fields = result?.data !== undefined ? result.data?.fields : result?.fields;
