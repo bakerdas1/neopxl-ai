@@ -1,0 +1,333 @@
+<div class="topbar"><h1>API Reference</h1><a class="btn btn-secondary" href="/keys" style="text-decoration:none">Manage API Keys</a></div>
+
+<div class="settings-card">
+  <h3>Overview</h3>
+  <p>Programmatic access to the extraction, schema generation and classification engines. All endpoints return JSON.</p>
+  <div class="ref-grid">
+    <div class="ref-item">
+      <div class="ref-item-label">Base URL</div>
+      <code class="ref-item-value">https://pars2.neopxl.online</code>
+    </div>
+    <div class="ref-item">
+      <div class="ref-item-label">Authentication</div>
+      <code class="ref-item-value">X-API-Key: YOUR_API_KEY</code>
+    </div>
+    <div class="ref-item">
+      <div class="ref-item-label">Alternative auth</div>
+      <code class="ref-item-value">Authorization: Bearer &lt;JWT&gt;</code>
+    </div>
+  </div>
+  <p style="margin-top:var(--spacing-md)">Create an API key on the <a href="/keys">API Keys</a> page and send it in the <code>X-API-Key</code> header on every request. No login session needed — the key identifies your account.</p>
+</div>
+
+<div class="section-title">Extraction</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-post">POST</span><code class="endpoint-path">/extract</code></div>
+  <p>Submit a document for extraction. The job runs in the background and returns immediately with a <code>jobId</code>. Poll <code>GET /api/tasks/:id</code> for status and results.</p>
+  <table class="params-table">
+    <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+    <tr><td><code>file</code></td><td>file</td><td>yes</td><td>Document to extract (multipart/form-data)</td></tr>
+    <tr><td><code>template</code></td><td>string</td><td>no</td><td>Template id or name (e.g. <code>np_001</code> or <code>"Landing Invoices"</code>)</td></tr>
+    <tr><td><code>schema</code></td><td>string (JSON)</td><td>no</td><td>Array of field definitions, e.g. <code>[{"name":"invoiceNumber","type":"string","description":"..."}]</code></td></tr>
+    <tr><td><code>filter</code></td><td>string (JSON)</td><td>no</td><td>Row filter: <code>{"keepIf":["landing","take off"],"dropIf":["noise","infrastructure"]}</code> — words are matched (case-insensitive, hyphen-normalised) against each row's <code>description</code> + <code>charges_type</code></td></tr>
+    <tr><td><code>pages</code></td><td>string</td><td>no</td><td>Page range to extract, e.g. <code>1-9</code>, <code>3</code>, or <code>1,3,5-7</code> (default: all pages)</td></tr>
+  </table>
+  <div class="code-block" id="exExtract">
+curl -X POST 'https://pars2.neopxl.online/extract' \
+  -H 'X-API-Key: YOUR_API_KEY' \
+  -F 'file=@"/path/to/document.pdf"' \
+  -F 'template=np_001'
+  <button class="btn-copy-code" onclick="copyCurl('exExtract')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+  </div>
+  <details class="resp"><summary>Response</summary><pre>{
+  "jobId": "c368fc4c6f44e76e",
+  "status": "processing",
+  "estimatedTime": "~2 min",
+  "resultUrl": "/api/result/c368fc4c6f44e76e"
+}</pre></details>
+</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-post">POST</span><code class="endpoint-path">/api/extract</code></div>
+  <p>Same as <code>/extract</code> but supports both sync and async modes. Append <code>?mode=async</code> to return a <code>jobId</code> immediately; omit it to wait for the full result synchronously (can be slow for large documents). Accepts the same fields (<code>file</code>, <code>template</code>, <code>schema</code>, <code>filter</code>, <code>pages</code>).</p>
+  <div class="code-block" id="exApiExtract">
+curl -X POST 'https://pars2.neopxl.online/api/extract?mode=async' \
+  -H 'X-API-Key: YOUR_API_KEY' \
+  -F 'file=@"/path/to/document.pdf"' \
+  -F 'schema=[{"name":"invoiceNumber","type":"string","description":"Invoice number"}]'
+  <button class="btn-copy-code" onclick="copyCurl('exApiExtract')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+  </div>
+  <p style="margin-top:var(--spacing-sm)">Supported file types: <code>pdf, png, jpg, jpeg, txt, docx, html, xlsx, xls, csv</code></p>
+</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-post">POST</span><code class="endpoint-path">/api/classify</code></div>
+  <p>Analyse a document and return the best-matching template based on keyword matching plus AI classification.</p>
+  <div class="code-block" id="exClassify">
+curl -X POST 'https://pars2.neopxl.online/api/classify' \
+  -H 'X-API-Key: YOUR_API_KEY' \
+  -F 'file=@"/path/to/document.pdf"'
+  <button class="btn-copy-code" onclick="copyCurl('exClassify')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+  </div>
+  <details class="resp"><summary>Response</summary><pre>{
+  "success": true,
+  "template_id": "np_001",
+  "template_name": "Landing Invoices",
+  "confidence": "high",
+  "method": "keywords",
+  "keywordHits": 4,
+  "matchedKeywords": ["landing", "parking", "take off"]
+}</pre></details>
+</div>
+
+<div class="section-title">Tasks</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-get">GET</span><code class="endpoint-path">/api/tasks</code></div>
+  <p>List extraction tasks, newest first. Supports pagination.</p>
+  <table class="params-table">
+    <tr><th>Query</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>limit</code></td><td>int</td><td>Page size (default all)</td></tr>
+    <tr><td><code>offset</code></td><td>int</td><td>Offset for pagination (default 0)</td></tr>
+  </table>
+  <div class="code-block" id="exList">
+curl -H 'X-API-Key: YOUR_API_KEY' \
+  'https://pars2.neopxl.online/api/tasks?limit=25&offset=0'
+  <button class="btn-copy-code" onclick="copyCurl('exList')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+  </div>
+  <details class="resp"><summary>Response</summary><pre>{
+  "jobs": [
+    { "id": "c368fc4c6f44e76e", "fileName": "invoice.pdf",
+      "status": "done", "pages": 3, "timing": { "total": 48231 },
+      "cost": { "total": 0.0045 }, "geminiCalls": 3, "userName": "Jane Doe" }
+  ],
+  "total": 104,
+  "schemaCount": 13,
+  "hasMore": true
+}</pre></details>
+</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-get">GET</span><code class="endpoint-path">/api/tasks/:id</code></div>
+  <p>Get a single task with full status, timing, cost and token usage. Use this to poll a job after submitting.</p>
+  <div class="code-block" id="exTask">
+curl -H 'X-API-Key: YOUR_API_KEY' \
+  'https://pars2.neopxl.online/api/tasks/c368fc4c6f44e76e'
+  <button class="btn-copy-code" onclick="copyCurl('exTask')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+  </div>
+</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-get">GET</span><code class="endpoint-path">/api/tasks/:id/data</code></div>
+  <p>Get the extracted JSON data for a completed task.</p>
+  <div class="code-block" id="exData">
+curl -H 'X-API-Key: YOUR_API_KEY' \
+  'https://pars2.neopxl.online/api/tasks/c368fc4c6f44e76e/data'
+  <button class="btn-copy-code" onclick="copyCurl('exData')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+  </div>
+</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-get">GET</span><code class="endpoint-path">/api/tasks/:id/csv</code></div>
+  <p>Export the extracted line items for a completed task as a CSV-ready payload. Returns <code>{ fileName, charges, details, rowCount }</code>.</p>
+  <div class="code-block" id="exCsv">
+curl -H 'X-API-Key: YOUR_API_KEY' \
+  'https://pars2.neopxl.online/api/tasks/c368fc4c6f44e76e/csv'
+  <button class="btn-copy-code" onclick="copyCurl('exCsv')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+  </div>
+</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-get">GET</span><code class="endpoint-path">/api/tasks/:id/file</code></div>
+  <p>Download the original uploaded source file for a task. Add <code>?name=&lt;stored_name&gt;</code> to pick a specific stored file; otherwise the PDF (or first file) is returned.</p>
+  <div class="code-block" id="exFile">
+curl -H 'X-API-Key: YOUR_API_KEY' \
+  -o invoice.pdf \
+  'https://pars2.neopxl.online/api/tasks/c368fc4c6f44e76e/file'
+  <button class="btn-copy-code" onclick="copyCurl('exFile')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+  </div>
+</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-post">POST</span><code class="endpoint-path">/api/tasks/:id/rerun</code></div>
+  <p>Re-run an extraction using the same stored file, template or schema. Returns a new <code>jobId</code>.</p>
+  <div class="code-block" id="exRerun">
+curl -X POST 'https://pars2.neopxl.online/api/tasks/c368fc4c6f44e76e/rerun' \
+  -H 'X-API-Key: YOUR_API_KEY'
+  <button class="btn-copy-code" onclick="copyCurl('exRerun')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+  </div>
+</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-delete">DELETE</span><code class="endpoint-path">/api/tasks/:id</code></div>
+  <p>Delete a task and its stored files permanently.</p>
+  <div class="code-block" id="exDel">
+curl -X DELETE 'https://pars2.neopxl.online/api/tasks/c368fc4c6f44e76e' \
+  -H 'X-API-Key: YOUR_API_KEY'
+  <button class="btn-copy-code" onclick="copyCurl('exDel')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+  </div>
+</div>
+
+<div class="section-title">Schema Generation</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-post">POST</span><code class="endpoint-path">/api/schema/generate</code></div>
+  <p>Generate an extraction schema from one or more sample documents (up to 10 files). Runs in the background — poll <code>GET /api/schema/result/:id</code>.</p>
+  <table class="params-table">
+    <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+    <tr><td><code>file</code></td><td>file</td><td>yes</td><td>Sample document(s). Repeat the field for multiple files</td></tr>
+    <tr><td><code>instructions</code></td><td>string</td><td>no</td><td>Extra guidance for the schema model</td></tr>
+    <tr><td><code>model</code></td><td>string</td><td>no</td><td>Model override (default <code>gemini-2.5-flash</code>)</td></tr>
+  </table>
+  <div class="code-block" id="exSchema">
+curl -X POST 'https://pars2.neopxl.online/api/schema/generate' \
+  -H 'X-API-Key: YOUR_API_KEY' \
+  -F 'file=@"/path/to/sample1.pdf"' \
+  -F 'file=@"/path/to/sample2.pdf"' \
+  -F 'instructions=Focus on landing and parking fee line items'
+  <button class="btn-copy-code" onclick="copyCurl('exSchema')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+  </div>
+  <details class="resp"><summary>Response</summary><pre>{
+  "jobId": "3f4a2c9b81d0e5aa",
+  "status": "processing",
+  "estimatedTime": "~1 min",
+  "resultUrl": "/api/schema/result/3f4a2c9b81d0e5aa"
+}</pre></details>
+</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-get">GET</span><code class="endpoint-path">/api/schema/result/:id</code></div>
+  <p>Get the result of a schema generation job.</p>
+  <details class="resp" open><summary>Response</summary><pre>{
+  "status": "done",
+  "schema": [
+    { "name": "invoiceNumber", "type": "string", "description": "Invoice number" },
+    { "name": "items", "type": "array", "items": { "type": "object", "fields": [] } }
+  ],
+  "files": [ { "name": "sample1.pdf", "pages": 2 } ],
+  "usage": { "total": { "input": 4821, "output": 732 } },
+  "timing": 38211
+}</pre></details>
+</div>
+
+<div class="section-title">Templates</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-get">GET</span><code class="endpoint-path">/api/templates</code></div>
+  <p>List all extraction templates.</p>
+  <div class="code-block" id="exTplList">
+curl -H 'X-API-Key: YOUR_API_KEY' \
+  'https://pars2.neopxl.online/api/templates'
+  <button class="btn-copy-code" onclick="copyCurl('exTplList')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+  </div>
+</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-post">POST</span><code class="endpoint-path">/api/templates</code></div>
+  <p>Create a template. Body is JSON with <code>name</code>, <code>schema</code> (JSON string of field definitions), optional <code>filter</code>, <code>keywords</code> (comma-separated, used for classification), <code>domain</code> (e.g. <code>aviation</code> — selects the domain profile for prompts, charge-type aliases and field vocabulary), <code>dateFormat</code>/<code>dateInputFormat</code>, and <code>verifyCoverage</code>.</p>
+  <div class="code-block" id="exTplCreate">
+curl -X POST 'https://pars2.neopxl.online/api/templates' \
+  -H 'X-API-Key: YOUR_API_KEY' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "Landing Invoices",
+    "schema": "[{\"name\":\"invoiceNumber\",\"type\":\"string\",\"description\":\"Invoice number\"}]",
+    "filter": "{\"keepIf\":[\"landing\"],\"dropIf\":[\"noise\"]}",
+    "keywords": "landing, parking, take off",
+    "domain": "aviation"
+  }'
+  <button class="btn-copy-code" onclick="copyCurl('exTplCreate')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+  </div>
+</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-put">PUT</span><span class="method method-delete">DELETE</span><code class="endpoint-path">/api/templates/:id</code></div>
+  <p>Update or delete a template by id. PUT accepts the same JSON body as creation; DELETE removes it.</p>
+</div>
+
+<div class="section-title">Account &amp; Stats</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-get">GET</span><code class="endpoint-path">/api/keys</code></div>
+  <p>List API keys for the current user.</p>
+</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-post">POST</span><code class="endpoint-path">/api/keys</code></div>
+  <p>Create a new API key. Body: <code>{"name": "Postman"}</code>. The full key is returned once.</p>
+  <details class="resp"><summary>Response</summary><pre>{
+  "id": "a1b2c3d4",
+  "name": "Postman",
+  "key": "npk_4f8a...YOUR_KEY_ONLY_SHOWN_ONCE"
+}</pre></details>
+</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-delete">DELETE</span><code class="endpoint-path">/api/keys/:id</code></div>
+  <p>Revoke an API key. It stops working immediately.</p>
+</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-get">GET</span><code class="endpoint-path">/api/me</code></div>
+  <p>Return the authenticated user profile.</p>
+</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-get">GET</span><code class="endpoint-path">/api/stats</code></div>
+  <p>Dashboard statistics: total jobs, successful/failed counts, total cost and Gemini calls.</p>
+</div>
+
+<div class="api-card">
+  <div class="endpoint-head"><span class="method method-get">GET</span><code class="endpoint-path">/api/stats/templates</code></div>
+  <p>Per-template extraction counts and costs.</p>
+  <details class="resp"><summary>Response</summary><pre>[
+  { "name": "Landing Invoices", "count": 76, "cost": 4.4536 },
+  { "name": "Raw Markdown", "count": 1, "cost": 0 }
+]</pre></details>
+</div>
+
+<div class="settings-card" style="margin-top:var(--spacing-lg)">
+  <h3>Error responses</h3>
+  <p>All endpoints return <code>400</code> for invalid requests, <code>401</code> for missing/invalid authentication, <code>404</code> for unknown resources, and <code>500</code> for server errors.</p>
+  <pre style="background:var(--canvas-dark);color:var(--brand-green);padding:var(--spacing-md);border-radius:var(--rounded-md);font-size:12px;margin-top:var(--spacing-sm)">{ "error": "Unauthorized — missing valid authentication" }</pre>
+</div>
+
+<style>
+.ref-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--spacing-md); }
+.ref-item { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--rounded-md); padding: var(--spacing-sm) var(--spacing-md); }
+.ref-item-label { font-size: 11px; color: var(--steel); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; margin-bottom: 4px; }
+.ref-item-value { font-size: 12px; color: var(--ink); word-break: break-all; }
+.api-card { background: var(--canvas); border-radius: var(--rounded-lg); padding: var(--spacing-lg); border: 1px solid var(--hairline); box-shadow: var(--shadow-card); margin-bottom: var(--spacing-md); }
+.endpoint-head { display: flex; align-items: center; gap: 10px; margin-bottom: var(--spacing-sm); }
+.endpoint-path { font-size: 15px; font-weight: 600; color: var(--ink); }
+.method { display: inline-block; padding: 2px 10px; border-radius: var(--rounded-full); font-size: 11px; font-weight: 700; letter-spacing: 0.4px; color: #fff; flex-shrink: 0; }
+.method-get { background: #00684A; }
+.method-post { background: #2563EB; }
+.method-put { background: #B07600; }
+.method-delete { background: #DB3030; }
+.api-card p { font-size: 13px; color: var(--slate); margin: 0 0 var(--spacing-sm); }
+.api-card p a { color: var(--brand-green-dark); }
+.params-table { width: 100%; border-collapse: collapse; margin-bottom: var(--spacing-sm); }
+.params-table th { text-align: left; padding: 6px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--steel); font-weight: 600; background: var(--surface); border-bottom: 1px solid var(--hairline); }
+.params-table td { padding: 6px 10px; border-bottom: 1px solid var(--hairline-soft); font-size: 12.5px; color: var(--ink); vertical-align: top; }
+.params-table td code, .params-table th code { font-size: 12px; }
+.code-block { position: relative; background: var(--canvas-dark); color: var(--brand-green); padding: var(--spacing-md) var(--spacing-lg); border-radius: var(--rounded-md); font-size: 12.5px; line-height: 1.6; overflow-x: auto; white-space: pre; margin-top: var(--spacing-sm); }
+.btn-copy-code { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.1); border: none; cursor: pointer; padding: 6px; border-radius: var(--rounded-sm); display: inline-flex; align-items: center; transition: background 150ms; z-index: 1; }
+.btn-copy-code:hover { background: rgba(255,255,255,0.2); }
+.resp { margin-top: var(--spacing-sm); }
+.resp summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--brand-green-dark); }
+.resp pre { background: var(--surface-soft); border: 1px solid var(--hairline); color: var(--ink); padding: var(--spacing-sm) var(--spacing-md); border-radius: var(--rounded-sm); font-size: 12px; line-height: 1.5; overflow-x: auto; white-space: pre; margin-top: 6px; }
+</style>
+
+<script>
+function copyCurl(id) {
+  const el = document.getElementById(id);
+  const text = el.childNodes[0].nodeValue || el.textContent;
+  navigator.clipboard.writeText(text.replace(/<button[\s\S]*/, '').trim()).then(() => {
+    const btn = el.querySelector('.btn-copy-code');
+    btn.innerHTML = '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#00ED64" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>';
+    setTimeout(() => { btn.innerHTML = '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg>'; }, 1500);
+  });
+}
+</script>

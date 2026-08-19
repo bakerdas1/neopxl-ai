@@ -8,13 +8,37 @@
 </div>
 
 <div id="tplSection" style="display:none;margin-bottom:var(--spacing-lg)">
-  <div class="section-title" style="margin-bottom:var(--spacing-sm)">Extractions by Template</div>
-  <div class="settings-card" id="tplChart" style="padding:var(--spacing-lg)"><div style="text-align:center;color:var(--steel);padding:var(--spacing-md)" id="tplEmpty">No data</div></div>
+  <div id="tplWrap" style="display:none;gap:var(--spacing-md);align-items:stretch;flex-wrap:wrap">
+    <div class="settings-card" style="flex:1 1 0%;min-width:300px;padding:var(--spacing-lg)">
+      <div style="text-align:center;color:var(--steel);padding:var(--spacing-md)" id="tplEmpty">No data</div>
+      <div class="section-title" style="font-size:14px;margin-bottom:var(--spacing-md)">Extractions by Template</div>
+      <div style="display:flex;gap:var(--spacing-md);align-items:center;flex-wrap:wrap">
+        <div id="tplDonut" style="flex-shrink:0"></div>
+        <div id="tplLegend" style="flex:1;min-width:160px"></div>
+      </div>
+    </div>
+    <div class="settings-card" style="flex:2 1 0%;min-width:300px;padding:var(--spacing-lg)">
+      <div class="section-title" style="font-size:14px;margin-bottom:var(--spacing-md)">Cost per Template</div>
+      <div id="costEmpty" style="text-align:center;color:var(--steel);padding:var(--spacing-md)">No data</div>
+      <div id="costBars" style="display:none"></div>
+    </div>
+  </div>
 </div>
+
+<style>
+.donut-row { display:flex; align-items:center; gap:8px; padding:5px 0; font-size:13px; }
+.donut-swatch { width:12px; height:12px; border-radius:3px; flex-shrink:0; }
+.donut-name { flex:1; color:var(--ink); }
+.donut-val { color:var(--steel); font-weight:600; white-space:nowrap; }
+.cost-bar { background: var(--brand-green-dark); }
+</style>
 
 <script>
 const currentUser = JSON.parse(localStorage.getItem('neopxl_user') || '{}');
-let chartReady = false;
+const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
+const DONUT_PALETTE = () => isDark()
+  ? ['#00ED64', '#31D38A', '#00C2A8', '#5eead4', '#82aaff', '#ffd479', '#8FD3C7', '#3A8F6B', '#6E8591', '#95ABB6']
+  : ['#00ED64', '#00684A', '#00C2A8', '#001E2B', '#1C2D38', '#3A8F6B', '#5D6C75', '#889397', '#A2AAAE', '#C1C7CC'];
 
 async function loadStats() {
   const r = await apiFetch('/api/stats').then(d=>d.json()).catch(()=>({}));
@@ -26,33 +50,82 @@ async function loadStats() {
   document.getElementById('statCalls').textContent = (r.totalGeminiCalls||0).toLocaleString();
 
   const tplStats = await apiFetch('/api/stats/templates').then(d=>d.json()).catch(()=>[]);
-  if (tplStats.length) {
-    document.getElementById('tplSection').style.display = 'block';
-    document.getElementById('tplEmpty').style.display = 'none';
-    if (!chartReady) {
-      // First render — create chart skeleton
-      const max = Math.max(...tplStats.map(t=>t.count));
-      document.getElementById('tplChart').innerHTML = tplStats.map(t => `
-        <div class="chart-row">
-          <div class="chart-label">${t.name}</div>
-          <div class="chart-bar-wrap"><div class="chart-bar" style="width:${(t.count/max*100)}%"></div></div>
-          <div class="chart-count">${t.count}</div>
-        </div>`).join('');
-      chartReady = true;
-    } else {
-      // Reactive update — update bar widths and counts in place
-      const max = Math.max(...tplStats.map(t=>t.count));
-      const rows = document.querySelectorAll('#tplChart .chart-row');
-      tplStats.forEach((t, i) => {
-        if (rows[i]) {
-          rows[i].querySelector('.chart-bar').style.width = (t.count/max*100)+'%';
-          rows[i].querySelector('.chart-count').textContent = t.count;
-        }
-      });
-    }
+  if (!tplStats.length) return;
+  document.getElementById('tplSection').style.display = 'block';
+  document.getElementById('tplEmpty').style.display = 'none';
+  document.getElementById('tplWrap').style.display = 'flex';
+  renderDonut(tplStats);
+  renderCostBars(tplStats);
+}
+
+function renderDonut(data) {
+  const total = data.reduce((s,d)=>s+d.count,0);
+  const sorted = [...data].sort((a,b)=>b.count-a.count);
+  const cx = 100, cy = 100, radius = 80, circ = 2 * Math.PI * radius;
+  const palette = DONUT_PALETTE();
+  const themeKey = isDark() ? 'dark' : 'light';
+  const existingNames = [...document.querySelectorAll('#tplDonut circle')].map(c=>c.dataset.name).join('|');
+  const newNames = sorted.map(d=>d.name).join('|');
+  if (document.getElementById('tplDonut').dataset.theme === themeKey && existingNames === newNames) {
+    const circles = [...document.querySelectorAll('#tplDonut circle')];
+    let acc = 0;
+    sorted.forEach((d,i) => {
+      const len = (d.count/total)*circ;
+      const off = -(acc/total)*circ;
+      acc += d.count;
+      circles[i].setAttribute('stroke-dasharray', len.toFixed(3)+' '+(circ-len).toFixed(3));
+      circles[i].setAttribute('stroke-dashoffset', off.toFixed(3));
+    });
+    document.querySelector('#tplDonut svg text').textContent = total;
+    const rows = [...document.querySelectorAll('#tplLegend .donut-row')];
+    sorted.forEach((d,i) => {
+      rows[i].querySelector('.donut-val').textContent = d.count+' · '+Math.round(d.count/total*100)+'%';
+    });
+    return;
   }
+  let acc = 0;
+  const segs = sorted.map((d,i) => {
+    const len = (d.count/total)*circ;
+    const off = -(acc/total)*circ;
+    acc += d.count;
+    return '<circle data-name="'+d.name+'" cx="'+cx+'" cy="'+cy+'" r="'+radius+'" fill="none" stroke="'+palette[i%palette.length]+'" stroke-width="26" stroke-dasharray="'+len.toFixed(3)+' '+(circ-len).toFixed(3)+'" stroke-dashoffset="'+off.toFixed(3)+'" transform="rotate(-90 '+cx+' '+cy+')"/>';
+  }).join('');
+  const donutEl = document.getElementById('tplDonut');
+  donutEl.dataset.theme = themeKey;
+  donutEl.innerHTML =
+    '<svg viewBox="0 0 200 200" width="170" height="170">'+segs+
+    '<text x="'+cx+'" y="'+cy+'" text-anchor="middle" font-size="34" font-weight="700" fill="var(--ink)">'+total+'</text>'+
+    '<text x="'+cx+'" y="'+cy+22+'" text-anchor="middle" font-size="11" fill="var(--steel)">extractions</text></svg>';
+  document.getElementById('tplLegend').innerHTML = sorted.map((d,i) =>
+    '<div class="donut-row" data-name="'+d.name+'"><span class="donut-swatch" style="background:'+palette[i%palette.length]+'"></span>'+
+    '<span class="donut-name">'+d.name+'</span>'+
+    '<span class="donut-val">'+d.count+' · '+Math.round(d.count/total*100)+'%</span></div>').join('');
+}
+
+function renderCostBars(data) {
+  const sorted = [...data].sort((a,b)=>b.cost-a.cost);
+  const max = Math.max(...sorted.map(t=>t.cost), 0.0001);
+  const rows = [...document.querySelectorAll('#costBars .chart-row')];
+  const existingNames = rows.map(r=>r.dataset.name).join('|');
+  const newNames = sorted.map(t=>t.name).join('|');
+  if (existingNames === newNames) {
+    sorted.forEach((t,i) => {
+      rows[i].querySelector('.chart-bar').style.width = Math.max(t.cost/max*100,0.5)+'%';
+      rows[i].querySelector('.chart-count').textContent = '$'+t.cost.toFixed(4);
+    });
+    document.getElementById('costEmpty').style.display = 'none';
+    document.getElementById('costBars').style.display = 'block';
+    return;
+  }
+  document.getElementById('costBars').innerHTML = sorted.map(t =>
+    '<div class="chart-row" data-name="'+t.name+'"><div class="chart-label">'+t.name+'</div>'+
+    '<div class="chart-bar-wrap"><div class="chart-bar cost-bar" style="width:'+Math.max(t.cost/max*100,0.5)+'%"></div></div>'+
+    '<div class="chart-count">$'+t.cost.toFixed(4)+'</div></div>').join('');
+  document.getElementById('costEmpty').style.display = 'none';
+  document.getElementById('costBars').style.display = 'block';
 }
 
 loadStats();
 setInterval(loadStats, 10000);
+window.addEventListener('themechange', loadStats);
 </script>

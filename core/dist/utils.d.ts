@@ -21,6 +21,7 @@ export declare const convertPdfToImages: ({ localPath, pagesToConvertAsImages, t
 }) => Promise<{
     page: number;
     buffer: Buffer;
+    tiles: number;
 }[]>;
 export declare const convertFileToPdf: ({ extension, localPath, tempDir, }: {
     extension: string;

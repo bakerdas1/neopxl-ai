@@ -11,7 +11,7 @@
       <p style="color:var(--slate)">Drop <strong>multiple documents</strong> here, or click to browse</p>
       <p style="font-size:12px;color:var(--stone);margin-top:6px">PDF, DOCX, PNG, JPG — up to 10 documents</p>
     </div>
-    <input type="file" id="fileInput" multiple accept=".pdf,.docx,.png,.jpg,.jpeg" style="display:none">
+    <input type="file" id="fileInput" multiple accept=".pdf,.docx,.png,.jpg,.jpeg,.xlsx,.xls,.csv" style="display:none">
     <div id="fileList" style="margin-top:var(--spacing-sm);display:flex;flex-direction:column;gap:4px"></div>
   </div>
 
@@ -33,7 +33,7 @@
       <button class="btn btn-primary btn-sm" onclick="openSaveTemplate()">Save as Template</button>
     </div>
   </div>
-  <pre id="schemaOutput" style="background:#0A1A22;color:var(--brand-green);padding:var(--spacing-md);border-radius:var(--rounded-md);font-size:12px;line-height:1.5;overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:480px;overflow-y:auto"></pre>
+  <pre id="schemaOutput" style="background:var(--canvas-dark);color:var(--brand-green);padding:var(--spacing-md);border-radius:var(--rounded-md);font-size:12px;line-height:1.5;overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:480px;overflow-y:auto"></pre>
   <div id="resultMeta" style="font-size:12px;color:var(--steel);margin-top:var(--spacing-sm)"></div>
 </div>
 

@@ -68,37 +68,58 @@ outputDir, pagesToConvertAsImages = -1, tempDir = os_1.default.tmpdir(), }) => {
         .replace(/\s+/g, "_")
         .toLowerCase()
         .substring(0, 255); // Truncate file name to 255 characters to prevent ENAMETOOLONG errors
-    // Get list of converted images
+    // Get list of converted images (a wide page may be split into band files).
     const files = await fs_extra_1.default.readdir(tempDirectory);
-    const images = files.filter((file) => file.endsWith(".png"));
+    const pngFiles = files
+        .filter((file) => file.endsWith(".png"))
+        .sort();
+    // Group band files by page: "..._page_00001.png" and "..._page_00001_0.png"
+    // belong to the same page.
+    const pageGroups = [];
+    const byPage = new Map();
+    for (const file of pngFiles) {
+        const m = file.match(/^(.*_page_\d{5})(?:_\d+)?\.png$/);
+        const key = m ? m[1] : file;
+        let group = byPage.get(key);
+        if (!group) {
+            group = [];
+            byPage.set(key, group);
+            pageGroups.push(group);
+        }
+        group.push(file);
+    }
     if (maintainFormat) {
-        // Use synchronous processing
-        for (const image of images) {
-            const imagePath = path_1.default.join(tempDirectory, image);
-            try {
-                const { content, inputTokens, outputTokens } = await providerInstance.getCompletion({
-                    imagePath,
-                    llmParams: validatedParams,
-                    maintainFormat,
-                    model: defaultModel,
-                    priorPage,
-                });
-                const formattedMarkdown = (0, utils_1.formatMarkdown)(content);
-                inputTokenCount += inputTokens;
-                outputTokenCount += outputTokens;
-                // Update prior page to result from last processing step
-                priorPage = formattedMarkdown;
-                // Add all markdown results to array
-                aggregatedMarkdown.push(formattedMarkdown);
+        // Use sequential processing, keeping formatting consistent across pages.
+        for (const group of pageGroups) {
+            const parts = [];
+            for (const image of group) {
+                const imagePath = path_1.default.join(tempDirectory, image);
+                try {
+                    const { content, inputTokens, outputTokens } = await providerInstance.getCompletion({
+                        imagePath,
+                        llmParams: validatedParams,
+                        maintainFormat,
+                        model: defaultModel,
+                        priorPage,
+                    });
+                    const formattedMarkdown = (0, utils_1.formatMarkdown)(content);
+                    inputTokenCount += inputTokens;
+                    outputTokenCount += outputTokens;
+                    // Update prior page to result from last processing step
+                    priorPage = formattedMarkdown;
+                    parts.push(formattedMarkdown);
+                }
+                catch (error) {
+                    console.error(`Failed to process image ${image}:`, error);
+                    throw error;
+                }
             }
-            catch (error) {
-                console.error(`Failed to process image ${image}:`, error);
-                throw error;
-            }
+            aggregatedMarkdown.push(parts.join("\n\n"));
         }
     }
     else {
-        // Process in parallel with a limit on concurrent pages
+        // Process in parallel with a limit on concurrent images, then merge bands
+        // belonging to the same page.
         const processPage = async (image) => {
             const imagePath = path_1.default.join(tempDirectory, image);
             try {
@@ -114,7 +135,6 @@ outputDir, pagesToConvertAsImages = -1, tempDir = os_1.default.tmpdir(), }) => {
                 outputTokenCount += outputTokens;
                 // Update prior page to result from last processing step
                 priorPage = formattedMarkdown;
-                // Add all markdown results to array
                 return formattedMarkdown;
             }
             catch (error) {
@@ -122,19 +142,17 @@ outputDir, pagesToConvertAsImages = -1, tempDir = os_1.default.tmpdir(), }) => {
                 throw error;
             }
         };
-        // Function to process pages with concurrency limit
-        const processPagesInBatches = async (images, limit) => {
-            const results = [];
-            const promises = images.map((image, index) => limit(() => processPage(image).then((result) => {
-                results[index] = result;
-            })));
-            await Promise.all(promises);
-            return results;
-        };
         const limit = (0, p_limit_1.default)(concurrency);
-        const results = await processPagesInBatches(images, limit);
-        const filteredResults = results.filter(utils_1.isString);
-        aggregatedMarkdown.push(...filteredResults);
+        const allImages = pageGroups.flat();
+        const results = await Promise.all(allImages.map((image) => limit(() => processPage(image))));
+        const byFile = new Map();
+        allImages.forEach((image, i) => byFile.set(image, results[i]));
+        for (const group of pageGroups) {
+            const parts = group
+                .map((f) => byFile.get(f))
+                .filter((v) => typeof v === "string");
+            aggregatedMarkdown.push(parts.join("\n\n"));
+        }
     }
     // Write the aggregated markdown to a file
     if (outputDir) {

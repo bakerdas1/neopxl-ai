@@ -69,6 +69,21 @@ export const formatMarkdown = (text: string) => {
     }
   }
 
+  // Strip hallucinated markdown image links (the vision model sometimes invents
+  // external image URLs, e.g. a fake GitHub URL for a logo). Image references
+  // are not needed for text extraction and only add noise.
+  formattedMarkdown = formattedMarkdown.replace(/!\[[^\]]*\]\([^)]*\)\s*/g, "");
+
+  // Collapse pathological runs of horizontal-rule / separator characters.
+  // The vision model occasionally emits tens of thousands of underscores (or
+  // hyphens/equals) for a signature or border line, which bloats the markdown
+  // by tens of thousands of tokens and derails extraction of the content that
+  // follows. Underscores are never table separators, so collapse them
+  // aggressively; other separator chars are only collapsed well beyond any
+  // legitimate markdown table separator width.
+  formattedMarkdown = formattedMarkdown.replace(/_{10,}/g, "---");
+  formattedMarkdown = formattedMarkdown.replace(/[-=~*.]{200,}/g, "---");
+
   return formattedMarkdown;
 };
 
@@ -172,11 +187,13 @@ export const getTextFromImage = async (
   }
 };
 
-// Correct image orientation based on OCR confidence
-// Run Tesseract on 2 orientations — PDFs only rotate in 90° increments
+// Correct image orientation based on OCR confidence.
+// Run Tesseract on all 4 orientations — PDFs only rotate in 90° increments.
+// Only reorient when there is a clear winner with meaningful confidence,
+// otherwise keep the original image (the vision model handles slight rotation).
 const correctImageOrientation = async (buffer: Buffer): Promise<Buffer> => {
   const image = sharp(buffer);
-  const rotations = [0, 90];
+  const rotations = [0, 90, 180, 270];
 
   const results = await Promise.all(
     rotations.map(async (rotation) => {
@@ -189,23 +206,25 @@ const correctImageOrientation = async (buffer: Buffer): Promise<Buffer> => {
     })
   );
 
-  // Find the rotation with the best confidence score
-  const bestResult = results.reduce((best, current) =>
-    current.confidence > best.confidence ? current : best
-  );
+  const sorted = [...results].sort((a, b) => b.confidence - a.confidence);
+  const best = sorted[0];
+  const second = sorted[1];
 
-  if (bestResult.rotation !== 0) {
+  const MIN_CONFIDENCE = 60;
+  const MIN_MARGIN = 10;
+  const shouldRotate =
+    best.rotation !== 0 &&
+    best.confidence >= MIN_CONFIDENCE &&
+    (!second || best.confidence - second.confidence >= MIN_MARGIN);
+
+  if (shouldRotate) {
     console.log(
-      `Reorienting image ${bestResult.rotation} degrees (Confidence: ${bestResult.confidence}%).`
+      `Reorienting image ${best.rotation} degrees (Confidence: ${best.confidence}%).`
     );
+    return await image.rotate(best.rotation).toBuffer();
   }
 
-  // Rotate the image to the best orientation
-  const correctedImageBuffer = await image
-    .rotate(bestResult.rotation)
-    .toBuffer();
-
-  return correctedImageBuffer;
+  return buffer;
 };
 
 const getPdfPageCount = async (localPath: string): Promise<number> => {
@@ -238,6 +257,65 @@ const gsConvertPage = async (
   ]);
 };
 
+// Page tiling: dense tables (many rows and/or columns) are poorly read by
+// vision models when rendered as a single image — the model truncates rows or
+// loses columns. Render at full resolution and split oversized pages into a
+// grid of overlapping tiles so each tile stays readable.
+//   - tall pages (many rows)  -> split vertically
+//   - wide/landscape pages    -> split horizontally
+//   - very large pages        -> split both ways
+// Tiles are written in row-major order as <base>_00.png, <base>_01.png, ...
+const MAX_TILE_HEIGHT = 2400;
+const MAX_TILE_WIDTH = 2400;
+const TILE_OVERLAP = 0.04;
+const MAX_TILES = 16;
+
+const tilePage = async (
+  basePath: string,
+  imagePath: string
+): Promise<number> => {
+  try {
+    const meta = await sharp(imagePath).metadata();
+    const width = meta.width || 0;
+    const height = meta.height || 0;
+    if (!width || !height) return 1;
+
+    const nRows = height > MAX_TILE_HEIGHT ? Math.ceil(height / MAX_TILE_HEIGHT) : 1;
+    const nCols = width > MAX_TILE_WIDTH && width > height
+      ? Math.ceil(width / MAX_TILE_WIDTH)
+      : 1;
+    if (nRows === 1 && nCols === 1) return 1;
+    if (nRows * nCols > MAX_TILES) return 1; // too large: leave single image
+
+    const tileW = Math.ceil(width / nCols);
+    const tileH = Math.ceil(height / nRows);
+    const ovX = Math.floor(tileW * TILE_OVERLAP);
+    const ovY = Math.floor(tileH * TILE_OVERLAP);
+
+    let idx = 0;
+    for (let r = 0; r < nRows; r++) {
+      for (let c = 0; c < nCols; c++) {
+        const left = Math.max(0, c * tileW - ovX);
+        const top = Math.max(0, r * tileH - ovY);
+        let w = tileW + (left === 0 ? ovX : ovX * 2);
+        let h = tileH + (top === 0 ? ovY : ovY * 2);
+        if (left + w > width) w = width - left;
+        if (top + h > height) h = height - top;
+        const tilePath = `${basePath}_${String(idx).padStart(2, "0")}.png`;
+        await sharp(imagePath)
+          .extract({ left, top, width: w, height: h })
+          .toFile(tilePath);
+        idx++;
+      }
+    }
+    await fs.remove(imagePath);
+    return idx;
+  } catch (e) {
+    console.error("Page tiling failed:", e);
+    return 1;
+  }
+};
+
 // Convert each page to a png, correct orientation, and save that image to tmp
 export const convertPdfToImages = async ({
   localPath,
@@ -262,18 +340,12 @@ export const convertPdfToImages = async ({
     const results = await Promise.all(
       pagesToProcess.map(async (page) => {
         const paddedPageNumber = page.toString().padStart(5, "0");
-        const imagePath = path.join(
+        const basePath = path.join(
           tempDir,
-          `${saveFilename}_page_${paddedPageNumber}.png`
+          `${saveFilename}_page_${paddedPageNumber}`
         );
+        const imagePath = `${basePath}.png`;
         await gsConvertPage(localPath, page, imagePath, density);
-
-        const img = sharp(imagePath);
-        const meta = await img.metadata();
-        if (meta.height && meta.height > 2048) {
-          await img.resize({ height: 2048, withoutEnlargement: true }).toFile(imagePath + '.tmp');
-          await fs.rename(imagePath + '.tmp', imagePath);
-        }
 
         const buffer = await fs.readFile(imagePath);
         let correctedBuffer = buffer;
@@ -284,7 +356,8 @@ export const convertPdfToImages = async ({
           await fs.writeFile(imagePath, correctedBuffer);
         }
 
-        return { page, buffer: correctedBuffer };
+        const tiles = await tilePage(basePath, imagePath);
+        return { page, buffer: correctedBuffer, tiles };
       })
     );
 

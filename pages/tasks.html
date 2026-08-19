@@ -1,3 +1,31 @@
+<style>.tab-count{display:inline-block;background:rgba(0,104,74,.1);color:var(--brand-green-dark);border-radius:999px;padding:1px 8px;font-size:11px;font-weight:700;margin-left:4px}
+#pageRange{width:100%;padding:10px 14px;border:1px solid var(--hairline-strong);border-radius:var(--rounded-md);font-family:var(--font-family);font-size:13px;color:var(--ink);background:var(--canvas)}
+.tasks-loader{display:flex;align-items:center;justify-content:center;gap:8px;padding:var(--spacing-lg);color:var(--steel);font-size:13px}
+.tasks-end{display:flex;align-items:center;justify-content:center;padding:var(--spacing-lg);color:var(--steel);font-size:13px;font-style:italic}
+#tasksTabs{width:100%;justify-content:space-between;align-items:center;margin-bottom:var(--spacing-md)}
+.tasks-tabs-left{display:flex;gap:4px}
+.tasks-tools{display:flex;align-items:center;gap:8px}
+.task-search{position:relative}
+.task-search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--slate);pointer-events:none}
+.task-search input{padding:7px 12px 7px 34px;border:1px solid var(--hairline-strong);border-radius:var(--rounded-full);font-family:var(--font-family);font-size:13px;color:var(--ink);background:var(--canvas);width:210px}
+.task-search input:focus{outline:none;border-color:var(--brand-green-dark);box-shadow:0 0 0 3px var(--focus-ring)}
+.task-status-select{padding:7px 12px;border:1px solid var(--hairline-strong);border-radius:var(--rounded-full);font-family:var(--font-family);font-size:13px;color:var(--ink);background:var(--canvas);cursor:pointer}
+.task-status-select:focus{outline:none;border-color:var(--brand-green-dark)}
+.ts-filter{position:relative}
+.ts-filter-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid var(--hairline-strong);background:var(--canvas);border-radius:var(--rounded-full);font-family:var(--font-family);font-size:13px;color:var(--ink);cursor:pointer}
+.ts-filter-btn:hover{background:var(--surface)}
+.ts-filter-count{background:var(--brand-green-dark);color:var(--canvas);border-radius:999px;font-size:11px;font-weight:700;padding:0 6px}
+.ts-dropdown{position:absolute;right:0;top:calc(100% + 6px);min-width:230px;background:var(--surface);border:1px solid var(--hairline-strong);border-radius:var(--rounded-md);box-shadow:var(--shadow-card);z-index:50;display:none;padding:8px}
+.ts-dropdown.open{display:block}
+.ts-dropdown-search input{width:100%;padding:6px 10px;border:1px solid var(--hairline-strong);border-radius:var(--rounded-sm);font-size:12px;font-family:var(--font-family);background:var(--canvas);color:var(--ink);box-sizing:border-box}
+.ts-dropdown-search input:focus{outline:none;border-color:var(--brand-green-dark)}
+.ts-dropdown-list{max-height:230px;overflow:auto;margin-top:6px}
+.ts-opt{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--rounded-sm);cursor:pointer;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ts-opt:hover{background:var(--canvas)}
+.ts-opt input{width:auto;margin:0}
+.ts-opt.active{background:rgba(0,104,74,.08);color:var(--brand-green-dark);font-weight:600}
+.ts-date-input{padding:6px 8px;border:1px solid var(--hairline-strong);border-radius:var(--rounded-sm);font-family:var(--font-family);font-size:12px;background:var(--canvas);color:var(--ink);box-sizing:border-box;flex:1;min-width:0}
+.ts-date-input:focus{outline:none;border-color:var(--brand-green-dark)}</style>
 <div class="topbar">
   <h1>Tasks</h1>
   <button class="btn btn-primary" onclick="openExtractionModal()">
@@ -5,25 +33,79 @@
     New Extraction
   </button>
 </div>
+<div class="settings-tabs" id="tasksTabs">
+  <div class="tasks-tabs-left">
+    <button class="settings-tab active" id="tabExtraction" data-label="Data Extraction" onclick="switchTaskTab('extraction', this)">Data Extraction</button>
+    <button class="settings-tab" id="tabSchema" data-label="Schema Generation" onclick="switchTaskTab('schema', this)">Schema Generation</button>
+  </div>
+  <div class="tasks-tools">
+    <div class="task-search">
+      <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
+      <input type="text" id="taskSearchInput" placeholder="Search tasks…" oninput="onTaskFiltersChange()">
+    </div>
+    <div class="ts-filter" id="tsTemplateWrap">
+      <button type="button" class="ts-filter-btn" onclick="toggleTemplateDropdown(event)">Template<span class="ts-filter-count" id="tsTplCount" style="display:none"></span></button>
+      <div class="ts-dropdown" id="tsTplDropdown">
+        <div class="ts-dropdown-search"><input type="text" id="tsTplSearch" placeholder="Search templates…" oninput="onTplSearch()"></div>
+        <div class="ts-dropdown-list" id="tsTplOptions"></div>
+      </div>
+    </div>
+    <div class="ts-filter" id="tsDateWrap">
+      <button type="button" class="ts-filter-btn" onclick="toggleDateDropdown(event)">Date<span class="ts-filter-count" id="tsDateCount" style="display:none"></span></button>
+      <div class="ts-dropdown" id="tsDateDropdown" style="min-width:250px">
+        <div id="tsDatePresets"></div>
+        <div style="border-top:1px solid var(--hairline-soft);margin-top:6px;padding-top:8px">
+          <div style="font-size:11px;color:var(--steel);margin-bottom:6px">Custom range</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="date" id="tsDateFrom" class="ts-date-input">
+            <span style="color:var(--steel);font-size:12px">→</span>
+            <input type="date" id="tsDateTo" class="ts-date-input">
+          </div>
+          <button class="btn btn-primary btn-sm" style="width:100%;margin-top:8px" onclick="applyCustomDate()">Apply</button>
+        </div>
+      </div>
+    </div>
+    <select id="taskStatusFilter" class="task-status-select" onchange="onTaskFiltersChange()">
+      <option value="">All statuses</option>
+      <option value="done">Done</option>
+      <option value="in-progress">In progress</option>
+      <option value="error">Error</option>
+    </select>
+  </div>
+</div>
 <div class="tasks-grid" id="tasksGrid">
   <div class="skeleton-task"><div class="skeleton skeleton-badge" style="width:80px"></div><div style="flex:1"><div class="skeleton skeleton-line" style="width:60%"></div><div class="skeleton skeleton-line short" style="width:30%"></div></div><div class="skeleton-meta"><div class="skeleton skeleton-meta-item"></div><div class="skeleton skeleton-meta-item"></div><div class="skeleton skeleton-meta-item"></div><div class="skeleton skeleton-meta-item"></div></div></div>
   <div class="skeleton-task"><div class="skeleton skeleton-badge" style="width:80px"></div><div style="flex:1"><div class="skeleton skeleton-line" style="width:50%"></div><div class="skeleton skeleton-line short" style="width:25%"></div></div><div class="skeleton-meta"><div class="skeleton skeleton-meta-item"></div><div class="skeleton skeleton-meta-item"></div><div class="skeleton skeleton-meta-item"></div><div class="skeleton skeleton-meta-item"></div></div></div>
   <div class="skeleton-task"><div class="skeleton skeleton-badge" style="width:80px"></div><div style="flex:1"><div class="skeleton skeleton-line" style="width:55%"></div><div class="skeleton skeleton-line short" style="width:20%"></div></div><div class="skeleton-meta"><div class="skeleton skeleton-meta-item"></div><div class="skeleton skeleton-meta-item"></div><div class="skeleton skeleton-meta-item"></div><div class="skeleton skeleton-meta-item"></div></div></div>
 </div>
+<div id="tasksMoreSentinel" style="height:1px"></div>
+<div id="tasksLoader" class="tasks-loader" style="display:none"><svg class="loader" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg" style="overflow: visible;"><circle class="loader-track" cx="12" cy="12" r="10"></circle><circle class="loader-circle" cx="12" cy="12" r="10"></circle></svg> Loading more…</div>
+<div id="tasksEndMsg" class="tasks-end" style="display:none">You've reached the end</div>
 
 <!-- Extraction Modal -->
 <div class="modal-overlay" id="extractModalOverlay">
-  <div class="modal" style="max-width:700px">
+  <div class="modal" style="max-width:560px">
     <button class="modal-close" onclick="closeExtractModal()">×</button>
     <h3>New Extraction</h3>
     <form id="extractForm" enctype="multipart/form-data" style="margin-top:var(--spacing-md)" onsubmit="event.preventDefault(); startExtraction()">
-      <div class="form-group"><label>Document</label><input type="file" id="fileInput" required accept=".pdf,.png,.jpg,.jpeg,.txt,.docx,.html"></div>
-      <div class="form-group"><label>Template</label><select id="templateSelect" onchange="onTemplateChange()"><option value="">None (raw markdown)</option></select></div>
-      <div class="form-group"><label>Schema (JSON)</label><textarea id="schemaText" rows="4" placeholder='[{"name":"field","type":"string","description":"..."}]'></textarea></div>
-      <div class="form-group"><label>Filter (JSON, optional)</label><textarea id="filterText" rows="3" placeholder='{"dropIf":{"arr":{"key":"pattern"}}}'></textarea></div>
+      <div class="form-group"><label>Document</label><input type="file" id="fileInput" required accept=".pdf,.png,.jpg,.jpeg,.txt,.docx,.html,.xlsx,.xls,.csv"></div>
+      <div class="form-group">
+        <label>Template</label>
+        <select id="templateSelect" onchange="onTemplateChange()"><option value="">None (raw markdown)</option></select>
+        <a href="javascript:void(0)" onclick="openTplModal()" style="display:block;margin-top:6px;font-size:12px;color:var(--brand-green-dark);text-decoration:none">+ Add new template</a>
+      </div>
+      <div class="form-group">
+        <label>Pages</label>
+        <div class="page-toggle">
+          <button type="button" id="pageToggleAll" class="page-toggle-btn active" onclick="setPageMode('all')">Export all</button>
+          <button type="button" id="pageToggleRange" class="page-toggle-btn" onclick="setPageMode('range')">Selected pages</button>
+        </div>
+        <div id="pageRangeWrap" style="display:none;margin-top:8px">
+          <input type="text" id="pageRange" placeholder="e.g. 1-9" style="width:100%">
+        </div>
+      </div>
       <div style="display:flex;gap:8px">
         <button type="submit" class="btn btn-primary" id="extractBtn">Extract</button>
-        <button type="button" class="btn btn-secondary" onclick="saveAsTemplate()">Save as Template</button>
       </div>
       <div id="extractStatus" style="margin-top:var(--spacing-md);display:none"></div>
       <pre id="extractResult" style="display:none;margin-top:var(--spacing-md);background:var(--canvas-dark);color:var(--on-dark);padding:var(--spacing-md);border-radius:var(--rounded-md);font-size:12px;max-height:400px;overflow:auto"></pre>
@@ -31,41 +113,41 @@
   </div>
 </div>
 
-<!-- Job Details Modal -->
-<div class="modal-overlay" id="detailsModalOverlay"><div class="modal" style="max-width:800px">
-  <button class="modal-close" onclick="closeDetailsModal()">×</button>
-  <h3 id="detailsModalTitle">Job Details</h3>
-  <div style="display:flex;gap:4px;background:var(--surface);padding:4px;border-radius:var(--rounded-md);margin-bottom:var(--spacing-md);width:fit-content">
-    <button class="settings-tab active" onclick="switchDetailsTab('data')">Extracted Data</button>
-    <button class="settings-tab" onclick="switchDetailsTab('markdown')">Markdown</button>
-    <button class="settings-tab" onclick="switchDetailsTab('schema')">Schema</button>
-  </div>
-  <div id="detailsTabData" class="settings-tab-content active" style="position:relative">
-    <button class="btn-copy" onclick="copyDetailsText('detailsTabData')" style="position:absolute;top:0;right:0;z-index:1" title="Copy">
-      <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#001E2B" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
-    <pre id="detailsTabDataPre" style="min-height:60px">Loading...</pre>
-  </div>
-  <div id="detailsTabMarkdown" class="settings-tab-content" style="position:relative">
-    <button class="btn-copy" onclick="copyDetailsText('detailsTabMarkdown')" style="position:absolute;top:0;right:0;z-index:1" title="Copy">
-      <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#001E2B" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
-    <pre id="detailsTabMarkdownPre" style="min-height:60px">Loading...</pre>
-  </div>
-  <div id="detailsTabSchema" class="settings-tab-content" style="position:relative">
-    <button class="btn-copy" onclick="copyDetailsText('detailsTabSchema')" style="position:absolute;top:0;right:0;z-index:1" title="Copy">
-      <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#001E2B" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
-    <pre id="detailsTabSchemaPre" style="min-height:60px">Loading...</pre>
-  </div>
-</div></div>
-<div class="modal-overlay" id="tplModalOverlay">
-  <div class="modal" style="max-width:700px">
+<div class="drawer-overlay" id="tplModalOverlay">
+  <div class="drawer">
     <button class="modal-close" onclick="closeTplModal()">×</button>
     <h3 id="tplModalTitle">New Template</h3>
     <form id="tplForm" onsubmit="event.preventDefault();saveTemplateHandler()" style="margin-top:var(--spacing-md)">
       <input type="hidden" id="tplEditId">
       <div class="form-group"><label>Template Name</label><input type="text" id="newTplName" placeholder="e.g. Landing Invoices" required></div>
       <div class="form-group"><label>Schema (JSON)</label><textarea id="newTplSchema" rows="6" placeholder='[{"name":"field","type":"string","description":"..."}]'></textarea></div>
-      <div class="form-group"><label>Filter (JSON, optional)</label><textarea id="newTplFilter" rows="3" placeholder='{"dropIf":{"key":"pattern"}}'></textarea></div>
+      <div class="form-group"><label>Keep if (rows must contain one of these words)</label><div class="chip-box" id="tplKeepIfChips" data-placeholder="Type a word and press Enter"></div></div>
+      <div class="form-group"><label>Drop if (rows containing any of these words are removed)</label><div class="chip-box" id="tplDropIfChips" data-placeholder="Type a word and press Enter"></div></div>
       <div class="form-group"><label>Auto-Detect Keywords</label><input type="text" id="newTplKeywords" placeholder="e.g. landing, parking, take off"></div>
+      <div class="form-group"><label>Domain</label><input type="text" id="newTplDomain" placeholder="e.g. aviation, medical, generic" list="domainOptions"><datalist id="domainOptions"></datalist></div>
+      <div class="form-group">
+        <label>Date Format <span style="font-weight:400;color:var(--steel)">(applied to all date values in the schema)</span></label>
+        <select id="newTplDateFormat" onchange="onTplDateFormatChange()">
+          <option value="">Default (keep document format)</option>
+          <option value="YYYY-MM-DD">YYYY-MM-DD (2026-08-08)</option>
+          <option value="DD/MM/YYYY">DD/MM/YYYY (08/08/2026)</option>
+          <option value="MM/DD/YYYY">MM/DD/YYYY (08/08/2026)</option>
+          <option value="DD-MM-YYYY">DD-MM-YYYY (08-08-2026)</option>
+          <option value="MM-DD-YYYY">MM-DD-YYYY (08-08-2026)</option>
+          <option value="DD.MM.YYYY">DD.MM.YYYY (08.08.2026)</option>
+          <option value="YYYY/MM/DD">YYYY/MM/DD (2026/08/08)</option>
+          <option value="DD Mon YYYY">DD Mon YYYY (08 Aug 2026)</option>
+          <option value="Mon DD, YYYY">Mon DD, YYYY (Aug 8, 2026)</option>
+          <option value="DD MMMM YYYY">DD MMMM YYYY (08 August 2026)</option>
+          <option value="MMMM DD, YYYY">MMMM DD, YYYY (August 8, 2026)</option>
+          <option value="DD-MM-YY">DD-MM-YY (08-08-26)</option>
+          <option value="MM/DD/YY">MM/DD/YY (08/08/26)</option>
+          <option value="__other__">Other (custom)...</option>
+        </select>
+        <input type="text" id="newTplDateFormatCustom" placeholder="e.g. DD MMM YYYY" style="display:none;margin-top:6px">
+        <div style="font-size:11px;color:var(--steel);margin-top:6px">Note: this format will be applied to every date value in the schema (invoice dates, due dates, flight dates, etc.).</div>
+      </div>
+      <div class="form-group"><label><input type="checkbox" id="newTplVerify" style="width:auto;display:inline-block;margin-right:6px">Verify coverage (check record counts, catch missed rows)</label></div>
       <button type="submit" class="btn btn-primary" id="tplSaveBtn">Save Template</button>
     </form>
   </div>
@@ -73,60 +155,399 @@
 
 <script>
 const currentUser = JSON.parse(localStorage.getItem('neopxl_user') || '{}');
-let templatesCache=[], taskFirstRender = true;
+const SPINNER_SVG = '<svg class="loader" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg" style="overflow: visible;"><circle class="loader-track" cx="12" cy="12" r="10"></circle><circle class="loader-circle" cx="12" cy="12" r="10"></circle></svg>';
+let templatesCache=[], activeTab = 'extraction';
+const PAGE_SIZE = 25;
+let allJobs = [];
+let fetchOffset = 0;
+let hasMore = true;
+let loadingMore = false;
+let statusFilter = '';
+let selectedTemplates = new Set();
+let tplSearchQuery = '';
+const DATE_PRESETS = [
+  { key: '', label: 'All time', short: '' },
+  { key: 'today', label: 'Today', short: 'Today' },
+  { key: '7d', label: 'Last 7 days', short: '7d' },
+  { key: '14d', label: 'Last 14 days', short: '14d' },
+  { key: '30d', label: 'Last 30 days', short: '30d' },
+  { key: '90d', label: 'Last 90 days', short: '90d' },
+  { key: 'month', label: 'This month', short: 'Month' },
+  { key: 'lastmonth', label: 'Last month', short: 'Last mo' },
+];
+let datePreset = '';
+let dateCustom = false;
+let dateFrom = null;
+let dateTo = null;
 
-async function loadTasks() {
-  const jobs = await apiFetch('/api/tasks').then(d=>d.json()).catch(()=>[]);
+function computeDateRange(preset) {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  switch (preset) {
+    case 'today': return { from: startOfToday.getTime(), to: Date.now() };
+    case '7d': return { from: startOfToday.getTime() - 6 * 86400000, to: Date.now() };
+    case '14d': return { from: startOfToday.getTime() - 13 * 86400000, to: Date.now() };
+    case '30d': return { from: startOfToday.getTime() - 29 * 86400000, to: Date.now() };
+    case '90d': return { from: startOfToday.getTime() - 89 * 86400000, to: Date.now() };
+    case 'month': return { from: new Date(now.getFullYear(), now.getMonth(), 1).getTime(), to: Date.now() };
+    case 'lastmonth': return { from: new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime(), to: new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999).getTime() };
+    default: return { from: null, to: null };
+  }
+}
+
+function matchDatePreset(from, to) {
+  for (const p of DATE_PRESETS) {
+    if (!p.key) continue;
+    const r = computeDateRange(p.key);
+    if (r.from === from && r.to === to) return p.key;
+  }
+  return '';
+}
+
+function dateLabel() {
+  if (datePreset) {
+    const p = DATE_PRESETS.find(x => x.key === datePreset);
+    return p ? p.short : '';
+  }
+  if (dateCustom && (dateFrom || dateTo)) {
+    const f = dateFrom ? new Date(dateFrom) : null;
+    const t = dateTo ? new Date(dateTo) : null;
+    const fmt = d => (d.getMonth() + 1) + '/' + d.getDate() + '/' + d.getFullYear().toString().slice(2);
+    if (f && t) return fmt(f) + ' → ' + fmt(t);
+    return f ? fmt(f) + ' →' : '→ ' + fmt(t);
+  }
+  return '';
+}
+
+function updateDateBadge() {
+  const count = document.getElementById('tsDateCount');
+  const label = dateLabel();
+  count.style.display = label ? 'inline-block' : 'none';
+  count.textContent = label;
+}
+
+function renderDatePresets() {
+  document.getElementById('tsDatePresets').innerHTML = DATE_PRESETS.map(p => {
+    const active = !dateCustom && datePreset === p.key;
+    return '<button type="button" class="ts-opt' + (active ? ' active' : '') + '" style="width:100%;text-align:left;border:none;background:none;font-family:var(--font-family);font-size:13px;cursor:pointer" onclick="selectDatePreset(\'' + p.key + '\')">' + p.label + '</button>';
+  }).join('');
+}
+
+function toggleDateDropdown(e) {
+  e.stopPropagation();
+  const d = document.getElementById('tsDateDropdown');
+  const wasOpen = d.classList.contains('open');
+  document.querySelectorAll('.ts-dropdown.open').forEach(x => x.classList.remove('open'));
+  if (wasOpen) return;
+  d.classList.add('open');
+  renderDatePresets();
+  if (dateFrom) document.getElementById('tsDateFrom').value = new Date(dateFrom).toISOString().slice(0, 10);
+  else document.getElementById('tsDateFrom').value = '';
+  if (dateTo) document.getElementById('tsDateTo').value = new Date(dateTo).toISOString().slice(0, 10);
+  else document.getElementById('tsDateTo').value = '';
+}
+
+function selectDatePreset(key) {
+  datePreset = key;
+  dateCustom = false;
+  const r = computeDateRange(key);
+  dateFrom = r.from;
+  dateTo = r.to;
+  updateDateBadge();
+  renderDatePresets();
+  serializeFilters();
+  refreshTasks();
+}
+
+function applyCustomDate() {
+  const f = document.getElementById('tsDateFrom').value;
+  const t = document.getElementById('tsDateTo').value;
+  if (!f && !t) return;
+  datePreset = '';
+  dateCustom = true;
+  dateFrom = f ? new Date(f + 'T00:00:00').getTime() : null;
+  dateTo = t ? new Date(t + 'T23:59:59.999').getTime() : null;
+  updateDateBadge();
+  renderDatePresets();
+  serializeFilters();
+  refreshTasks();
+}
+
+function clearDateFilter() {
+  datePreset = '';
+  dateCustom = false;
+  dateFrom = null;
+  dateTo = null;
+  updateDateBadge();
+  renderDatePresets();
+  serializeFilters();
+  refreshTasks();
+}
+
+function taskHasFilter() {
+  return !!((document.getElementById('taskSearchInput').value || '').trim() || statusFilter || selectedTemplates.size || dateFrom || dateTo);
+}
+
+function updateTabCounts(data) {
+  const schemaCount = data.schemaCount || 0;
+  const counts = { tabExtraction: (data.total || 0) - schemaCount, tabSchema: schemaCount };
+  for (const id of ['tabExtraction', 'tabSchema']) {
+    const el = document.getElementById(id);
+    const c = counts[id];
+    if (el.dataset.count != c) {
+      el.dataset.count = c;
+      el.innerHTML = el.dataset.label + ' <span class="tab-count">' + c + '</span>';
+    }
+  }
+}
+
+function mergeJobs(incoming) {
+  const byId = new Map(allJobs.map(j => [j.id, j]));
+  for (const j of incoming) byId.set(j.id, j);
+  allJobs = [...byId.values()].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+}
+
+function currentFilterParams() {
+  const p = new URLSearchParams();
+  if (activeTab === 'schema') p.set('tab', 'schema');
+  const q = (document.getElementById('taskSearchInput').value || '').trim();
+  if (q) p.set('q', q);
+  if (statusFilter) p.set('status', statusFilter);
+  if (selectedTemplates.size) p.set('tpl', [...selectedTemplates].join(','));
+  if (dateFrom) p.set('from', dateFrom);
+  if (dateTo) p.set('to', dateTo);
+  return p;
+}
+
+async function fetchPage(pageOffset, pageSize) {
+  const p = currentFilterParams();
+  p.set('limit', pageSize);
+  p.set('offset', pageOffset);
+  return await apiFetch('/api/tasks?' + p.toString()).then(d => d.json()).catch(() => null);
+}
+
+function updateMoreIndicator() {
+  const loader = document.getElementById('tasksLoader');
+  const end = document.getElementById('tasksEndMsg');
+  loader.style.display = loadingMore ? 'flex' : 'none';
+  end.style.display = (!loadingMore && !hasMore && allJobs.length > 0) ? 'flex' : 'none';
+}
+
+function switchTaskTab(tab, btn) {
+  if (activeTab === tab) return;
+  activeTab = tab;
+  document.querySelectorAll('#tasksTabs .settings-tab').forEach(t => t.classList.toggle('active', t === btn));
+  serializeFilters();
+  refreshTasks();
+  updateMoreIndicator();
+}
+
+function onTaskFiltersChange() {
+  statusFilter = document.getElementById('taskStatusFilter').value;
+  serializeFilters();
+  refreshTasks();
+}
+
+function serializeFilters() {
+  const qs = currentFilterParams().toString();
+  history.replaceState(null, '', qs ? '/tasks?' + qs : '/tasks');
+}
+
+function restoreFiltersFromUrl() {
+  const p = new URLSearchParams(location.search);
+  const tab = p.get('tab');
+  if (tab === 'schema') {
+    activeTab = 'schema';
+    const btn = document.getElementById('tabSchema');
+    document.querySelectorAll('#tasksTabs .settings-tab').forEach(t => t.classList.toggle('active', t === btn));
+  }
+  const q = p.get('q');
+  if (q) {
+    document.getElementById('taskSearchInput').value = q;
+  }
+  const status = p.get('status');
+  if (status) {
+    document.getElementById('taskStatusFilter').value = status;
+    statusFilter = status;
+  }
+  const tpl = p.get('tpl');
+  if (tpl) {
+    tpl.split(',').map(v => v.trim()).filter(Boolean).forEach(v => selectedTemplates.add(v));
+    updateTplCountBadge();
+  }
+  const from = p.get('from');
+  const to = p.get('to');
+  if (from || to) {
+    dateFrom = from ? Number(from) : null;
+    dateTo = to ? Number(to) : null;
+    datePreset = matchDatePreset(dateFrom, dateTo);
+    dateCustom = !datePreset;
+    updateDateBadge();
+  }
+}
+
+function updateTplCountBadge() {
+  const count = document.getElementById('tsTplCount');
+  count.style.display = selectedTemplates.size ? 'inline-block' : 'none';
+  count.textContent = selectedTemplates.size;
+}
+
+function toggleTemplateDropdown(e) {
+  e.stopPropagation();
+  const d = document.getElementById('tsTplDropdown');
+  const wasOpen = d.classList.contains('open');
+  document.querySelectorAll('.ts-dropdown.open').forEach(x => x.classList.remove('open'));
+  if (wasOpen) return;
+  d.classList.add('open');
+  document.getElementById('tsTplSearch').value = '';
+  tplSearchQuery = '';
+  renderTplOptions();
+}
+
+function onTplSearch() {
+  tplSearchQuery = (document.getElementById('tsTplSearch').value || '').toLowerCase();
+  renderTplOptions();
+}
+
+function getTemplateOptions() {
+  const names = new Set();
+  templatesCache.forEach(t => { if (t.name) names.add(t.name); });
+  allJobs.forEach(j => { if (j.templateName && j.templateName !== 'schema-generation') names.add(j.templateName); });
+  const opts = [...names].sort().map(n => ({ value: n, label: n }));
+  opts.unshift({ value: '__none__', label: '(No template)' });
+  return opts;
+}
+
+function renderTplOptions() {
+  const list = document.getElementById('tsTplOptions');
+  const opts = getTemplateOptions().filter(o => !tplSearchQuery || o.label.toLowerCase().includes(tplSearchQuery));
+  if (!opts.length) { list.innerHTML = '<div style="padding:8px;color:var(--steel);font-size:12px">No templates</div>'; return; }
+  list.innerHTML = opts.map(o => {
+    const checked = selectedTemplates.has(o.value) ? 'checked' : '';
+    return '<label class="ts-opt"><input type="checkbox" value="' + o.value.replace(/"/g, '&quot;') + '" ' + checked + ' onchange="onTplToggle(this)">' + o.label.replace(/</g, '&lt;') + '</label>';
+  }).join('');
+}
+
+function onTplToggle(cb) {
+  if (cb.checked) selectedTemplates.add(cb.value); else selectedTemplates.delete(cb.value);
+  updateTplCountBadge();
+  serializeFilters();
+  refreshTasks();
+}
+
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('tsTemplateWrap');
+  if (wrap && !wrap.contains(e.target)) document.getElementById('tsTplDropdown').classList.remove('open');
+  const dwrap = document.getElementById('tsDateWrap');
+  if (dwrap && !dwrap.contains(e.target)) document.getElementById('tsDateDropdown').classList.remove('open');
+});
+
+function copyJobId(id) {
+  const CHECK = '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>';
+  const CLIPBOARD = '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg>';
+  const done = (ok) => {
+    const btn = document.querySelector('.copy-id-btn[data-copy="' + id + '"]');
+    if (!btn || !ok) return;
+    btn.classList.add('copied');
+    btn.innerHTML = CHECK;
+    setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = CLIPBOARD; }, 1400);
+  };
+  const legacyCopy = () => {
+    const ta = document.createElement('textarea');
+    ta.value = id;
+    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+    return ok;
+  };
+  const useClipboard = navigator.clipboard && navigator.clipboard.writeText;
+  const attempt = useClipboard
+    ? Promise.race([navigator.clipboard.writeText(id), new Promise((_, rej) => setTimeout(() => rej(new Error('clipboard timeout')), 300))])
+    : Promise.reject();
+  attempt.then(() => done(true)).catch(() => done(legacyCopy()));
+}
+
+function updateCard(card, job) {
+  const statusEl = card.querySelector('.task-card-status');
+  const newStatus = job.status === 'done' ? 'done' : job.status === 'error' ? 'error' : 'progress';
+  const newClass = 'task-card-status ts-' + newStatus;
+  const label = job.status === 'in-progress' ? SPINNER_SVG : ((job.status !== 'done' && job.status !== 'error' && job.statusMessage ? job.statusMessage : job.status)).toUpperCase();
+  if (statusEl.className !== newClass) statusEl.className = newClass;
+  if (statusEl.innerHTML !== label) statusEl.innerHTML = label;
+  const timeEl = card.querySelector('.task-card-meta-item:nth-child(2) strong');
+  if (timeEl && job.timing?.total) timeEl.textContent = fmtDuration(job.timing.total);
+  const nameEl = card.querySelector('.task-card-name a');
+  if (nameEl && nameEl.textContent !== job.fileName) nameEl.textContent = job.fileName || 'Untitled';
+}
+
+function syncGrid() {
   const grid = document.getElementById('tasksGrid');
-
-  if (taskFirstRender) {
-    taskFirstRender = false;
-    grid.innerHTML = renderTaskCards(jobs) || '<div style="text-align:center;padding:var(--spacing-xxl);color:var(--steel)">No tasks yet</div>';
+  if (!allJobs.length) { grid.innerHTML = emptyState(); return; }
+  const existing = grid.querySelectorAll('.task-card');
+  const existingIds = new Set([...existing].map(c => c.dataset.jobId));
+  const hasNew = allJobs.some(j => !existingIds.has(j.id));
+  if (!existing.length || hasNew) {
+    grid.innerHTML = renderTaskCards(allJobs) || emptyState();
     return;
   }
-
-  // Silent refresh — update existing cards in-place
-  const existing = grid.querySelectorAll('.task-card');
   existing.forEach(card => {
-    const id = card.dataset.jobId;
-    const job = jobs.find(j => j.id === id);
-    if (!job) { card.remove(); return; }
-    const statusEl = card.querySelector('.task-card-status');
-    const newStatus = job.status === 'done' ? 'done' : job.status === 'error' ? 'error' : 'progress';
-    const currentClass = statusEl.classList.toString();
-    const newClass = 'task-card-status ts-' + newStatus;
-    if (currentClass !== newClass) {
-      statusEl.className = newClass;
-      statusEl.innerHTML = (job.status === 'in-progress' ? '<span class="spinner"></span> ' : '') + job.status.toUpperCase();
-    }
-    // Update timing
-    const timeEl = card.querySelector('.task-card-meta-item:nth-child(2) strong');
-    if (timeEl && job.timing?.total) timeEl.textContent = (job.timing.total/1000).toFixed(1)+'s';
-    // Update cost
-    const costEl = card.querySelector('.task-card-meta-item:nth-child(3) strong');
-    if (costEl) costEl.textContent = '$'+(job.cost?.total||0).toFixed(4);
+    const job = allJobs.find(j => j.id === card.dataset.jobId);
+    if (!job) card.remove();
+    else updateCard(card, job);
   });
-  // Add new jobs that don't have cards yet
-  const existingIds = new Set([...existing].map(c => c.dataset.jobId));
-  const newJobs = jobs.filter(j => !existingIds.has(j.id));
-  if (newJobs.length > 0) {
-    const container = document.createElement('div');
-    container.innerHTML = renderTaskCards(newJobs);
-    while (container.firstChild) grid.insertBefore(container.firstChild, grid.firstChild);
+}
+
+async function refreshTasks() {
+  allJobs = [];
+  fetchOffset = 0;
+  hasMore = true;
+  await loadTasks();
+}
+
+async function loadTasks() {
+  const d = await fetchPage(0, PAGE_SIZE);
+  if (!d || !Array.isArray(d.jobs)) return;
+  mergeJobs(d.jobs);
+  hasMore = d.hasMore ?? (d.jobs.length === PAGE_SIZE);
+  updateTabCounts(d);
+  syncGrid();
+  updateMoreIndicator();
+}
+
+async function loadMore() {
+  if (loadingMore || !hasMore) return;
+  loadingMore = true;
+  updateMoreIndicator();
+  const d = await fetchPage(fetchOffset, PAGE_SIZE);
+  loadingMore = false;
+  if (d && Array.isArray(d.jobs)) {
+    mergeJobs(d.jobs);
+    fetchOffset += PAGE_SIZE;
+    hasMore = d.hasMore ?? (d.jobs.length === PAGE_SIZE);
+    updateTabCounts(d);
+    syncGrid();
   }
-  // Ensure empty state
-  if (!grid.querySelector('.task-card')) {
-    grid.innerHTML = '<div style="text-align:center;padding:var(--spacing-xxl);color:var(--steel)">No tasks yet</div>';
+  updateMoreIndicator();
+}
+
+function emptyState() {
+  if (taskHasFilter()) {
+    return '<div style="text-align:center;padding:var(--spacing-xxl);color:var(--steel)">No tasks match your search or filters</div>';
   }
+  const what = activeTab === 'schema' ? 'schema generation' : 'extraction';
+  return '<div style="text-align:center;padding:var(--spacing-xxl);color:var(--steel)">No ' + what + ' tasks yet</div>';
 }
 
 function renderTaskCards(jobs) {
   if (!jobs || !jobs.length) return '';
   return jobs.map(j=>`
     <div class="task-card" data-job-id="${j.id}">
-      <div class="task-card-status ts-${j.status==='done'?'done':j.status==='error'?'error':'progress'}">${j.status==='in-progress'?'<span class="spinner"></span> ':''}${j.status.toUpperCase()}</div>
+      <div class="task-card-status ts-${j.status==='done'?'done':j.status==='error'?'error':'progress'}">${j.status==='in-progress'?SPINNER_SVG:(j.status!=='done'&&j.status!=='error'&&j.statusMessage?j.statusMessage:j.status).toUpperCase()}</div>
       <div class="task-card-info">
-        <div class="task-card-name" title="${j.fileName||''}">${j.fileName||'Untitled'}</div>
+        <div class="task-card-name"><a href="/tasks/${j.id}" title="${j.fileName||''}" style="color:inherit;text-decoration:none">${j.fileName||'Untitled'}</a></div>
         <div class="task-card-id" style="color:var(--slate);font-family:var(--font-family);display:flex;align-items:center;gap:4px">
           <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:13px;height:13px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/></svg>
           ${j.userName||'—'}
@@ -134,12 +555,11 @@ function renderTaskCards(jobs) {
       </div>
       <div class="task-card-meta">
         <div class="task-card-meta-item">Pages<br><strong>${j.pages||'—'}</strong></div>
-        <div class="task-card-meta-item">Time<br><strong>${j.timing?.total?(j.timing.total/1000).toFixed(1)+'s':'—'}</strong></div>
-        <div class="task-card-meta-item">Cost<br><strong>$${(j.cost?.total||0).toFixed(4)}</strong></div>
-        <div class="task-card-meta-item">Calls<br><strong>${j.geminiCalls||'—'}</strong></div>
+        <div class="task-card-meta-item">Time<br><strong>${j.timing?.total?fmtDuration(j.timing.total):'—'}</strong></div>
+        <div class="task-card-meta-item">Job ID<br><span class="job-id"><code>${j.id}</code><button type="button" class="copy-id-btn" data-copy="${j.id}" onclick="copyJobId('${j.id}')" title="Copy job ID" aria-label="Copy job ID"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button></span></div>
       </div>
       <div class="task-card-actions">
-        ${j.status==='done'?`<button class="btn btn-secondary btn-sm" onclick="viewJobDetails('${j.id}')">Details</button>`:''}
+        ${j.status==='done'?`<a class="btn btn-secondary btn-sm" href="/tasks/${j.id}" style="text-decoration:none">Details</a>`:''}
         ${j.status==='error'?`<button class="btn btn-danger btn-sm" onclick="viewJobError('${j.id}')">Error</button>`:''}
       </div>
     </div>`).join('');
@@ -149,73 +569,64 @@ async function loadTemplates() {
   templatesCache = await apiFetch('/api/templates').then(d=>d.json()).catch(()=>[]);
   const sel=document.getElementById('templateSelect');
   sel.querySelectorAll('option:not(:first-child)').forEach(o=>o.remove());
-  templatesCache.forEach(t=>{const o=document.createElement('option');o.value=t.id;o.textContent=t.name;sel.appendChild(o)});
+  templatesCache.forEach(t=>{const o=document.createElement('option');o.value=t.name;o.textContent=t.name;sel.appendChild(o)});
 }
-function onTemplateChange(){
-  const tpl=templatesCache.find(t=>t.id===document.getElementById('templateSelect').value);
-  if(tpl){if(tpl.schema)document.getElementById('schemaText').value=tpl.schema;if(tpl.filter)document.getElementById('filterText').value=tpl.filter}
+function onTemplateChange(){}
+function setPageMode(mode){
+  const all=document.getElementById('pageToggleAll'),range=document.getElementById('pageToggleRange');
+  const wrap=document.getElementById('pageRangeWrap');
+  if(mode==='range'){all.classList.remove('active');range.classList.add('active');wrap.style.display='block'}
+  else{all.classList.add('active');range.classList.remove('active');wrap.style.display='none'}
 }
-function openExtractionModal(){document.getElementById('extractModalOverlay').style.display='flex'}
+function openExtractionModal(){setPageMode('all');document.getElementById('pageRange').value='';document.getElementById('extractModalOverlay').style.display='flex'}
 function closeExtractModal(){document.getElementById('extractModalOverlay').style.display='none'}
-function resetExtractForm(){document.getElementById('fileInput').value='';document.getElementById('schemaText').value='';document.getElementById('filterText').value='';document.getElementById('templateSelect').value='';document.getElementById('extractStatus').style.display='none';document.getElementById('extractResult').style.display='none';document.getElementById('extractBtn').disabled=false}
+function resetExtractForm(){document.getElementById('fileInput').value='';document.getElementById('templateSelect').value='';setPageMode('all');document.getElementById('pageRange').value='';document.getElementById('extractStatus').style.display='none';document.getElementById('extractResult').style.display='none';document.getElementById('extractBtn').disabled=false}
 document.getElementById('extractModalOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeExtractModal()});
 
 async function startExtraction(){
   const btn=document.getElementById('extractBtn');const status=document.getElementById('extractStatus');const result=document.getElementById('extractResult');
   btn.disabled=true;status.style.display='block';status.innerHTML='<p>Submitting...</p>';result.style.display='none';
-  const fd=new FormData();fd.append('file',document.getElementById('fileInput').files[0]);fd.append('template',document.getElementById('templateSelect').value);fd.append('schema',document.getElementById('schemaText').value);fd.append('filter',document.getElementById('filterText').value);
+  const fd=new FormData();fd.append('file',document.getElementById('fileInput').files[0]);fd.append('template',document.getElementById('templateSelect').value);
+  const rangeMode=document.getElementById('pageToggleRange').classList.contains('active');
+  if(rangeMode){const pr=document.getElementById('pageRange').value.trim();if(pr)fd.append('pages',pr)}
   try{
-    const r=await fetch('/extract',{method:'POST',body:fd});const job=await r.json();
+    const r=await apiFetch('/extract',{method:'POST',body:fd});const job=await r.json();
     if(!job.jobId){status.innerHTML='<p style="color:#DB3030">'+JSON.stringify(job)+'</p>';btn.disabled=false;return}
     status.innerHTML='<p>Submitted — job <code>'+job.jobId.slice(0,16)+'</code> is processing in background. Check Tasks page.</p>';
     setTimeout(()=>{closeExtractModal();resetExtractForm();loadTasks()},2000);
   }catch(err){status.innerHTML='<p style="color:#DB3030">'+err.message+'</p>';btn.disabled=false}
 }
 
-function viewJobDetails(id) {
-  document.getElementById('detailsModalOverlay').style.display='flex';
-  document.getElementById('detailsModalTitle').textContent='Job '+id.slice(0,16);
-  ['Data','Markdown','Schema'].forEach(t => {
-    const pre = document.getElementById('detailsTab'+t+'Pre');
-    if (pre) pre.textContent = 'Loading...';
-  });
-  switchDetailsTab('data');
-
-  apiFetch('/api/tasks/'+id+'/data').then(d=>d.json()).then(data => {
-    const extracted = data.data || data;
-    document.getElementById('detailsTabDataPre').textContent = JSON.stringify(extracted, null, 2);
-    document.getElementById('detailsTabMarkdownPre').textContent = data.markdown || '(none)';
-  });
-  apiFetch('/api/tasks/'+id).then(d=>d.json()).then(job => {
-    let s = job.schema;
-    if (typeof s==='string') try { s=JSON.parse(s); } catch(e) {}
-    document.getElementById('detailsTabSchemaPre').textContent = JSON.stringify(s||'None', null, 2);
-  });
-}
-
-function switchDetailsTab(tab) {
-  document.querySelectorAll('#detailsModalOverlay .settings-tab').forEach(t => t.classList.toggle('active', t.textContent.toLowerCase().includes(tab)));
-  ['data','markdown','schema'].forEach(t => {
-    document.getElementById('detailsTab'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('active', t===tab);
-  });
-}
-
-function copyDetailsText(preId) {
-  const el = document.getElementById(preId+'Pre') || document.getElementById(preId);
-  navigator.clipboard.writeText(el.textContent).then(() => {});
-}
-
-function closeDetailsModal() { document.getElementById('detailsModalOverlay').style.display='none'; }
-document.getElementById('detailsModalOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeDetailsModal()});
 function viewJobError(id){showModal('Error','<pre>Loading...</pre>');apiFetch('/api/tasks/'+id).then(d=>d.json()).then(job=>{showModal('Error','<pre>'+(job.error||'Unknown').replace(/</g,'&lt;')+'</pre>')})}
-function saveAsTemplate(){const n=prompt('Template name:');if(!n)return;apiFetch('/api/templates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,schema:document.getElementById('schemaText').value.trim(),filter:document.getElementById('filterText').value.trim()})}).then(()=>{loadTemplates();alert('Saved')})}
 
 // Template CRUD
-function openTplModal(){document.getElementById('tplEditId').value='';document.getElementById('newTplName').value='';document.getElementById('newTplSchema').value='';document.getElementById('newTplFilter').value='';document.getElementById('newTplKeywords').value='';document.getElementById('tplSaveBtn').textContent='Save Template';document.getElementById('tplModalTitle').textContent='New Template';document.getElementById('tplModalOverlay').style.display='flex'}
-function closeTplModal(){document.getElementById('tplModalOverlay').style.display='none'}
+function onTplDateFormatChange(){const c=document.getElementById('newTplDateFormatCustom');c.style.display=document.getElementById('newTplDateFormat').value==='__other__'?'block':'none'}
+function getTplDateFormat(){const sel=document.getElementById('newTplDateFormat');const val=sel.value;if(val==='__other__')return document.getElementById('newTplDateFormatCustom').value.trim()||'';return val}
+function setTplDateFormat(fmt){const sel=document.getElementById('newTplDateFormat');const custom=document.getElementById('newTplDateFormatCustom');const known=[...sel.options].some(o=>o.value===fmt);if(fmt&&!known){sel.value='__other__';custom.value=fmt;custom.style.display='block'}else{sel.value=fmt||'';custom.value='';custom.style.display='none'}}
+function openTplModal(){document.getElementById('tplEditId').value='';document.getElementById('newTplName').value='';document.getElementById('newTplSchema').value='';tplKeepChips.set([]);tplDropChips.set([]);document.getElementById('newTplKeywords').value='';document.getElementById('newTplDomain').value='';setTplDateFormat('');document.getElementById('newTplVerify').checked=false;document.getElementById('tplSaveBtn').textContent='Save Template';document.getElementById('tplModalTitle').textContent='New Template';document.getElementById('tplModalOverlay').classList.add('open')}
+function closeTplModal(){document.getElementById('tplModalOverlay').classList.remove('open')}
 document.getElementById('tplModalOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeTplModal()});
-async function saveTemplateHandler(){const id=document.getElementById('tplEditId').value;const n=document.getElementById('newTplName').value.trim();const s=document.getElementById('newTplSchema').value.trim();const f=document.getElementById('newTplFilter').value.trim();const kw=document.getElementById('newTplKeywords').value.trim();if(!n)return alert('Name required');if(id)await apiFetch('/api/templates/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,schema:s,filter:f,keywords:kw})});else await apiFetch('/api/templates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,schema:s,filter:f,keywords:kw})});closeTplModal();loadTemplates()}
+async function editTpl(id){const t=templatesCache.find(x=>x.id===id);if(!t)return;document.getElementById('tplEditId').value=t.id;document.getElementById('newTplName').value=t.name;document.getElementById('newTplSchema').value=t.schema||'';const fc=filterToChips(t.filter);tplKeepChips.set(fc.keep);tplDropChips.set(fc.drop);document.getElementById('newTplKeywords').value=t.keywords||'';document.getElementById('newTplDomain').value=t.domain||'';setTplDateFormat(t.dateFormat||'');document.getElementById('newTplVerify').checked=!!t.verifyCoverage;document.getElementById('tplSaveBtn').textContent='Update Template';document.getElementById('tplModalTitle').textContent='Edit Template';document.getElementById('tplModalOverlay').classList.add('open')}
+async function saveTemplateHandler(){const id=document.getElementById('tplEditId').value;const n=document.getElementById('newTplName').value.trim();const s=document.getElementById('newTplSchema').value.trim();const f=chipsToFilter(tplKeepChips.get(),tplDropChips.get());const kw=document.getElementById('newTplKeywords').value.trim();const dm=document.getElementById('newTplDomain').value.trim();const df=getTplDateFormat();const vc=document.getElementById('newTplVerify').checked;if(!n)return alert('Name required');const body=JSON.stringify({name:n,schema:s,filter:f,keywords:kw,domain:dm,dateFormat:df,verifyCoverage:vc});if(id)await apiFetch('/api/templates/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body});else await apiFetch('/api/templates',{method:'POST',headers:{'Content-Type':'application/json'},body});closeTplModal();loadTemplates()}
 
+restoreFiltersFromUrl();
 loadTasks();loadTemplates();
 setInterval(loadTasks, 5000);
+const tplKeepChips = initChipInput('tplKeepIfChips', []);
+const tplDropChips = initChipInput('tplDropIfChips', []);
+
+(function setupInfiniteScroll() {
+  const sentinel = document.getElementById('tasksMoreSentinel');
+  if (!sentinel) return;
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) loadMore();
+    }, { rootMargin: '300px' });
+    io.observe(sentinel);
+  } else {
+    window.addEventListener('scroll', () => {
+      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 300) loadMore();
+    });
+  }
+})();
 </script>

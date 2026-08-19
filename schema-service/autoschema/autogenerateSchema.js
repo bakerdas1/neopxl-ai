@@ -6,6 +6,13 @@ import { secondarySchema } from './generation-schemas/secondary.js';
 import { cleanSchemaFields } from "./cleanSchemaFields.js";
 import { z } from 'zod';
 
+export class SchemaRetryableError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "SchemaRetryableError";
+  }
+}
+
 export async function autogenerateSchema(markdown, model, autoSchema, strict = false) {
   if (autoSchema === true) {
     return await blanketSchema(markdown, model, strict);
@@ -46,15 +53,28 @@ async function blanketSchema(markdown, model, strict = false) {
     prompt: AUTO_SCHEMA_PROMPT(markdown, strict),
     model: model,
     repairJson: true,
+    disableResponseSchema: true,
+    maxOutputTokens: 16384,
+    thinkingBudget: 4096,
   });
 
   const fields = result?.data !== undefined ? result.data?.fields : result?.fields;
 
   if (!fields) {
-    throw new Error("Error auto generating default schema.");
+    throw new SchemaRetryableError("Error auto generating default schema.");
   }
 
-  return cleanSchemaFields(fields);
+  const parsed = schemaToUse.safeParse({ fields });
+  if (!parsed.success) {
+    throw new SchemaRetryableError("Schema generation produced malformed output.");
+  }
+
+  const cleaned = cleanSchemaFields(fields);
+  if (!cleaned || cleaned.length === 0) {
+    throw new SchemaRetryableError("Schema generation produced no usable fields.");
+  }
+
+  return { fields: cleaned, usage: result.usage };
 }
 
 async function instructionBasedSchema(markdown, model, instructions, strict = false) {
@@ -90,15 +110,33 @@ async function instructionBasedSchema(markdown, model, instructions, strict = fa
     prompt: INSTRUCTIONS_SCHEMA_PROMPT(markdown, data, strict),
     model: model,
     repairJson: true,
+    disableResponseSchema: true,
+    maxOutputTokens: 16384,
+    thinkingBudget: 4096,
   });
 
   const fields = result?.data !== undefined ? result.data?.fields : result?.fields;
 
   if (!fields) {
-    throw new Error("Error auto generating specified schema.");
+    throw new SchemaRetryableError("Error auto generating specified schema.");
   }
 
-  return cleanSchemaFields(fields);
+  const parsed = schemaToUse.safeParse({ fields });
+  if (!parsed.success) {
+    throw new SchemaRetryableError("Schema generation produced malformed output.");
+  }
+
+  const cleaned = cleanSchemaFields(fields);
+  if (!cleaned || cleaned.length === 0) {
+    throw new SchemaRetryableError("Schema generation produced no usable fields.");
+  }
+
+  const usage = {
+    inputTokens: (instructionFields.usage?.inputTokens || 0) + (result.usage?.inputTokens || 0),
+    outputTokens: (instructionFields.usage?.outputTokens || 0) + (result.usage?.outputTokens || 0),
+  };
+
+  return { fields: cleaned, usage };
 }
 
 export const autoschema = autogenerateSchema;

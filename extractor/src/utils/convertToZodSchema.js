@@ -34,10 +34,11 @@ export const convertToZodSchema = (object) => {
           break;
 
         case 'object':
-          if (item.children) {
+          if (item.children && item.children.length) {
             zodType = z.object(createZodSchema(item.children));
           } else {
-            throw new Error(`Invalid "object" type definition for ${item.name}`);
+            console.warn(`Skipping invalid "object" field "${item.name}" (no children)`);
+            return;
           }
           break;
 
@@ -47,16 +48,15 @@ export const convertToZodSchema = (object) => {
               const singleChild = item.children[0];
               const childSchema = createZodSchema([singleChild]);
               const childType = childSchema[singleChild.name];
-              
+
               zodType = z.array(childType);
             } else {
               const arraySchema = createZodSchema(item.children);
               zodType = z.array(z.object(arraySchema));
             }
           } else {
-            throw new Error(
-              `Invalid or unsupported "array" type definition for ${item.name}`
-            );
+            console.warn(`Skipping invalid "array" field "${item.name}" (no children)`);
+            return;
           }
           break;
 
@@ -66,6 +66,12 @@ export const convertToZodSchema = (object) => {
 
       if (item.description) {
         zodType = zodType.describe(item.description);
+      }
+
+      // `required: true` → must have a real (non-null) value.
+      // otherwise → nullable (the key stays present but may be null).
+      if (item.required !== true) {
+        zodType = zodType.nullable();
       }
 
       schema[item.name] = zodType;

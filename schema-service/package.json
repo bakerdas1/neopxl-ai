@@ -1,8 +1,0 @@
-{
-  "name": "schema-service",
-  "version": "1.0.0",
-  "description": "Standalone schema generation service (autoschema, merge).",
-  "private": true,
-  "type": "module",
-  "dependencies": {}
-}

@@ -9,7 +9,7 @@ import {
 import fs from "fs-extra";
 import os from "os";
 import path from "path";
-import pLimit, { Limit } from "p-limit";
+import pLimit from "p-limit";
 import {
   DocumindArgs,
   DocumindOutput,
@@ -94,38 +94,59 @@ export const documind = async ({
     .toLowerCase()
     .substring(0, 255); // Truncate file name to 255 characters to prevent ENAMETOOLONG errors
 
-  // Get list of converted images
+  // Get list of converted images (a wide page may be split into band files).
   const files = await fs.readdir(tempDirectory);
-  const images = files.filter((file) => file.endsWith(".png"));
+  const pngFiles = files
+    .filter((file) => file.endsWith(".png"))
+    .sort();
+
+  // Group band files by page: "..._page_00001.png" and "..._page_00001_0.png"
+  // belong to the same page.
+  const pageGroups: string[][] = [];
+  const byPage = new Map<string, string[]>();
+  for (const file of pngFiles) {
+    const m = file.match(/^(.*_page_\d{5})(?:_\d+)?\.png$/);
+    const key = m ? m[1] : file;
+    let group = byPage.get(key);
+    if (!group) {
+      group = [];
+      byPage.set(key, group);
+      pageGroups.push(group);
+    }
+    group.push(file);
+  }
 
   if (maintainFormat) {
-    // Use synchronous processing
-    for (const image of images) {
-      const imagePath = path.join(tempDirectory, image);
-      try {
-        const { content, inputTokens, outputTokens } = await providerInstance.getCompletion({
-          imagePath,
-          llmParams: validatedParams,
-          maintainFormat,
-          model: defaultModel,
-          priorPage,
-        });
-        const formattedMarkdown = formatMarkdown(content);
-        inputTokenCount += inputTokens;
-        outputTokenCount += outputTokens;
+    // Use sequential processing, keeping formatting consistent across pages.
+    for (const group of pageGroups) {
+      const parts: string[] = [];
+      for (const image of group) {
+        const imagePath = path.join(tempDirectory, image);
+        try {
+          const { content, inputTokens, outputTokens } = await providerInstance.getCompletion({
+            imagePath,
+            llmParams: validatedParams,
+            maintainFormat,
+            model: defaultModel,
+            priorPage,
+          });
+          const formattedMarkdown = formatMarkdown(content);
+          inputTokenCount += inputTokens;
+          outputTokenCount += outputTokens;
 
-        // Update prior page to result from last processing step
-        priorPage = formattedMarkdown;
-
-        // Add all markdown results to array
-        aggregatedMarkdown.push(formattedMarkdown);
-      } catch (error) {
-        console.error(`Failed to process image ${image}:`, error);
-        throw error;
+          // Update prior page to result from last processing step
+          priorPage = formattedMarkdown;
+          parts.push(formattedMarkdown);
+        } catch (error) {
+          console.error(`Failed to process image ${image}:`, error);
+          throw error;
+        }
       }
+      aggregatedMarkdown.push(parts.join("\n\n"));
     }
   } else {
-    // Process in parallel with a limit on concurrent pages
+    // Process in parallel with a limit on concurrent images, then merge bands
+    // belonging to the same page.
     const processPage = async (image: string): Promise<string | null> => {
       const imagePath = path.join(tempDirectory, image);
       try {
@@ -143,7 +164,6 @@ export const documind = async ({
         // Update prior page to result from last processing step
         priorPage = formattedMarkdown;
 
-        // Add all markdown results to array
         return formattedMarkdown;
       } catch (error) {
         console.error(`Failed to process image ${image}:`, error);
@@ -151,26 +171,20 @@ export const documind = async ({
       }
     };
 
-    // Function to process pages with concurrency limit
-    const processPagesInBatches = async (images: string[], limit: Limit) => {
-      const results: (string | null)[] = [];
-
-      const promises = images.map((image, index) =>
-        limit(() =>
-          processPage(image).then((result) => {
-            results[index] = result;
-          })
-        )
-      );
-
-      await Promise.all(promises);
-      return results;
-    };
-
     const limit = pLimit(concurrency);
-    const results = await processPagesInBatches(images, limit);
-    const filteredResults = results.filter(isString);
-    aggregatedMarkdown.push(...filteredResults);
+    const allImages = pageGroups.flat();
+    const results = await Promise.all(
+      allImages.map((image) => limit(() => processPage(image)))
+    );
+    const byFile = new Map<string, string | null>();
+    allImages.forEach((image, i) => byFile.set(image, results[i]));
+
+    for (const group of pageGroups) {
+      const parts = group
+        .map((f) => byFile.get(f))
+        .filter((v): v is string => typeof v === "string");
+      aggregatedMarkdown.push(parts.join("\n\n"));
+    }
   }
 
   // Write the aggregated markdown to a file

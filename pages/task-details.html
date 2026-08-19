@@ -1,0 +1,518 @@
+<style>
+.task-detail-topbar { display: flex; align-items: center; gap: var(--spacing-md); margin-bottom: var(--spacing-lg); }
+.task-detail-topbar .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--slate); text-decoration: none; font-weight: 600; font-size: 13px; }
+.task-detail-topbar .back-link:hover { color: var(--ink); }
+.task-detail-topbar h1 { font-size: 20px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+.task-detail-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 460px; gap: var(--spacing-lg); height: calc(100vh - 150px); min-height: 480px; }
+.viewer-panel { background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--rounded-lg); box-shadow: var(--shadow-card); display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.viewer-file-bar { display: flex; align-items: center; gap: 8px; padding: 8px var(--spacing-md); background: var(--surface); border-bottom: 1px solid var(--hairline-soft); flex: 0 0 auto; }
+.viewer-file-bar .file-bar-label { font-size: 11px; color: var(--steel); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.viewer-file-bar select { padding: 5px 10px; border: 1px solid var(--hairline-strong); border-radius: var(--rounded-sm); font-family: var(--font-family); font-size: 12px; color: var(--ink); background: var(--canvas); max-width: 240px; }
+.viewer-panel-body { flex: 1; background: var(--canvas-dark); position: relative; min-height: 0; }
+.viewer-panel-body.has-bar { display: flex; flex-direction: column; }
+.viewer-panel-body embed, .viewer-panel-body iframe { width: 100%; height: 100%; border: none; display: block; }
+.viewer-panel-body.has-bar embed, .viewer-panel-body.has-bar iframe, .viewer-panel-body.has-bar img, .viewer-panel-body.has-bar pre { flex: 1; height: auto; min-height: 0; }
+.viewer-panel-body img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.viewer-panel-body pre { margin: 0; height: 100%; overflow: auto; padding: var(--spacing-lg); color: var(--brand-green); background: var(--canvas-dark); font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.viewer-placeholder { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--on-dark-muted); text-align: center; padding: var(--spacing-lg); }
+.viewer-placeholder svg { width: 44px; height: 44px; opacity: 0.5; }
+.detail-panel { background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--rounded-lg); box-shadow: var(--shadow-card); display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.detail-panel .settings-tabs { margin: var(--spacing-md) var(--spacing-md) 0; }
+.detail-panel .settings-tab-content { display: none; padding: var(--spacing-md); overflow: auto; flex: 1; }
+.detail-panel .settings-tab-content.active { display: block; }
+.stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--spacing-sm); margin-bottom: var(--spacing-md); }
+.stat-card { padding: var(--spacing-md); }
+.stat-card .stat-label { font-size: 11px; color: var(--steel); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 4px; }
+.stat-card .stat-value { font-size: 22px; font-weight: 700; }
+.detail-meta { display: flex; flex-direction: column; gap: 0; }
+.detail-meta-row { display: flex; justify-content: space-between; gap: var(--spacing-md); padding: 8px 0; border-bottom: 1px solid var(--hairline-soft); font-size: 13px; }
+.detail-meta-row:last-child { border-bottom: none; }
+.detail-meta-row .meta-label { color: var(--slate); font-weight: 500; flex-shrink: 0; }
+.detail-meta-row .meta-value { color: var(--ink); font-weight: 600; text-align: right; word-break: break-word; }
+.code-block { position: relative; }
+.code-block pre { background: var(--canvas-dark); color: var(--brand-green); padding: var(--spacing-md); border-radius: var(--rounded-md); font-size: 12px; line-height: 1.5; overflow: auto; white-space: pre-wrap; word-break: break-word; max-height: 100%; }
+.json-tree { white-space: normal; word-break: normal; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.json-tree .json-line { display: flex; align-items: baseline; flex-wrap: wrap; padding: 1px 0; }
+.json-tree .json-line-container { cursor: pointer; user-select: none; }
+.json-tree .json-line-container:hover { background: rgba(255,255,255,0.04); border-radius: var(--rounded-sm); }
+.json-tree .json-toggle { color: var(--steel); width: 16px; flex-shrink: 0; display: inline-block; text-align: center; cursor: pointer; }
+.json-tree .json-key { color: #8FD3C7; }
+.json-tree .json-badge { color: #5eead4; opacity: .85; margin-left: 4px; font-size: 11px; }
+.json-tree .json-children { padding-left: 20px; border-left: 1px solid rgba(255,255,255,0.07); margin-left: 7px; }
+.json-tree .json-node.collapsed > .json-children { display: none; }
+.json-tree .json-val-string { color: #a5d6a7; }
+.json-tree .json-val-number { color: #ffd479; }
+.json-tree .json-val-boolean { color: #82aaff; }
+.json-tree .json-val-null { color: #b0bec5; font-style: italic; }
+.code-block .btn-copy { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.1); padding: 6px; z-index: 1; transition: background 150ms; }
+.code-block .btn-copy:hover { background: rgba(255,255,255,0.2); }
+.tab-empty { color: var(--steel); font-style: italic; padding: var(--spacing-sm); }
+@media (max-width: 1100px) { .task-detail-wrap { grid-template-columns: 1fr; height: auto; } .viewer-panel-body { height: 60vh; } }
+</style>
+
+<div class="task-detail-topbar">
+  <a class="back-link" href="/tasks" id="backLink" aria-label="Back to Tasks">
+    <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"/></svg>
+  </a>
+  <h1 id="taskTitle">Loading…</h1>
+  <span class="task-card-status ts-progress" id="taskStatus">—</span>
+  <button class="btn btn-secondary btn-sm" id="rerunTaskBtn" style="display:none" onclick="openRerunModal()">Re-run</button>
+  <button class="btn btn-danger btn-sm" id="deleteTaskBtn" style="display:none" onclick="deleteTask()">Delete</button>
+</div>
+
+<div class="task-detail-wrap">
+  <div class="viewer-panel">
+    <div class="viewer-panel-body" id="viewerBody">
+      <div class="viewer-placeholder">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+        <div>No source document stored for this task.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="detail-panel">
+    <div class="settings-tabs">
+      <button class="settings-tab active" onclick="switchTab('details', this)">Overview</button>
+      <button class="settings-tab" onclick="switchTab('output', this)">JSON</button>
+      <button class="settings-tab" onclick="switchTab('markdown', this)">Markdown</button>
+      <button class="settings-tab" onclick="switchTab('csv', this)">CSV</button>
+    </div>
+
+    <div class="settings-tab-content active" id="tab-details">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Extracted Pages</div><div class="stat-value" id="statPages">—</div></div>
+        <div class="stat-card"><div class="stat-label">Time</div><div class="stat-value" id="statTime">—</div></div>
+        <div class="stat-card"><div class="stat-label">Cost</div><div class="stat-value" id="statCost">—</div></div>
+        <div class="stat-card"><div class="stat-label">Calls</div><div class="stat-value" id="statCalls">—</div></div>
+      </div>
+      <div class="detail-meta">
+        <div class="detail-meta-row"><span class="meta-label">Job ID</span><span class="meta-value" id="metaJobId">—</span></div>
+        <div class="detail-meta-row"><span class="meta-label">File</span><span class="meta-value" id="metaFile">—</span></div>
+        <div class="detail-meta-row"><span class="meta-label">Status</span><span class="meta-value" id="metaStatus">—</span></div>
+        <div class="detail-meta-row" id="metaReconcileRow" style="display:none"><span class="meta-label">Total Check</span><span class="meta-value" id="metaReconcile">—</span></div>
+        <div class="detail-meta-row" id="metaCoverageRow" style="display:none"><span class="meta-label">Coverage Check</span><span class="meta-value" id="metaCoverage">—</span></div>
+        <div class="detail-meta-row"><span class="meta-label">Template</span><span class="meta-value" id="metaTemplate">—</span></div>
+        <div class="detail-meta-row"><span class="meta-label">User</span><span class="meta-value" id="metaUser">—</span></div>
+        <div class="detail-meta-row"><span class="meta-label">Created</span><span class="meta-value" id="metaCreated">—</span></div>
+        <div class="detail-meta-row"><span class="meta-label">Completed</span><span class="meta-value" id="metaCompleted">—</span></div>
+      </div>
+    </div>
+
+    <div class="settings-tab-content" id="tab-output">
+      <div class="code-block">
+        <button class="btn-copy" onclick="copyTabText('outputPre')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+        <pre id="outputPre">Loading…</pre>
+      </div>
+    </div>
+
+    <div class="settings-tab-content" id="tab-markdown">
+      <div class="code-block">
+        <button class="btn-copy" onclick="copyTabText('markdownPre')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+        <pre id="markdownPre">Loading…</pre>
+      </div>
+    </div>
+
+    <div class="settings-tab-content" id="tab-csv">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:var(--spacing-md)">
+        <button class="btn btn-primary btn-sm" id="dlChargesBtn" onclick="downloadCsv('charges')" disabled>Download Charges CSV</button>
+        <button class="btn btn-secondary btn-sm" id="dlDetailsBtn" onclick="downloadCsv('details')" disabled>Download Details CSV</button>
+      </div>
+      <div class="code-block">
+        <button class="btn-copy" onclick="copyTabText('csvPre')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+        <pre id="csvPre">Loading…</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="rerunModalOverlay">
+  <div class="modal" style="max-width:520px">
+    <button class="modal-close" onclick="closeRerunModal()">×</button>
+    <h3>Re-run task</h3>
+    <div id="rerunModalBody"></div>
+    <div style="display:flex;gap:8px;margin-top:var(--spacing-md)">
+      <button class="btn btn-primary" id="confirmRerunBtn" onclick="confirmRerun()">Re-run</button>
+      <button class="btn btn-secondary" onclick="closeRerunModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const taskId = location.pathname.split('/').filter(Boolean).pop();
+const pageToken = localStorage.getItem('neopxl_token') || '';
+const SPINNER_SVG = '<svg class="loader" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg" style="overflow: visible;"><circle class="loader-track" cx="12" cy="12" r="10"></circle><circle class="loader-circle" cx="12" cy="12" r="10"></circle></svg>';
+let taskJob = null, taskData = null, selectedFile = null, taskRendered = false, pollTimer = null;
+
+function updateTaskStatusBadge(status, statusMessage) {
+  const st = document.getElementById('taskStatus');
+  const label = status === 'in-progress' ? SPINNER_SVG : ((status !== 'done' && status !== 'error' && statusMessage ? statusMessage : status)).toUpperCase();
+  st.className = 'task-card-status ts-' + (status === 'done' ? 'done' : status === 'error' ? 'error' : 'progress');
+  if (st.innerHTML !== label) st.innerHTML = label;
+}
+
+async function loadTask() {
+  const [job, data] = await Promise.all([
+    apiFetch('/api/tasks/' + taskId).then(d => d.json()).catch(() => null),
+    apiFetch('/api/tasks/' + taskId + '/data').then(d => d.json()).catch(() => null),
+  ]);
+  taskJob = job; taskData = data;
+
+  if (!job) {
+    document.getElementById('taskTitle').textContent = 'Task not found';
+    document.getElementById('taskStatus').textContent = '—';
+    document.getElementById('outputPre').textContent = '(not found)';
+    document.getElementById('markdownPre').textContent = '(not found)';
+    return;
+  }
+
+  const status = job.status || 'unknown';
+  const terminal = status === 'done' || status === 'error';
+
+  if (taskRendered && !terminal) {
+    // Silent refresh while still running: only update the status badge,
+    // leave the viewer and all panels untouched so nothing flickers.
+    updateTaskStatusBadge(status, job.statusMessage);
+    schedulePoll();
+    return;
+  }
+
+  taskRendered = true;
+  document.getElementById('taskTitle').textContent = (job.fileName || 'Task ' + taskId).slice(0, 60);
+  updateTaskStatusBadge(status, job.statusMessage);
+  document.getElementById('deleteTaskBtn').style.display = '';
+  const canRerun = (job.storedFiles && job.storedFiles.length > 0) && job.templateName !== 'schema-generation';
+  document.getElementById('rerunTaskBtn').style.display = canRerun ? '' : 'none';
+
+  document.getElementById('statPages').textContent = job.pages || '—';
+  document.getElementById('statTime').textContent = fmtDuration(job.timing?.total);
+  document.getElementById('statCost').textContent = '$' + (job.cost?.total || 0).toFixed(4);
+  document.getElementById('statCalls').textContent = job.geminiCalls || '—';
+
+  document.getElementById('metaJobId').textContent = taskId;
+  document.getElementById('metaFile').textContent = job.fileName || '—';
+  document.getElementById('metaStatus').textContent = status.toUpperCase();
+  document.getElementById('metaTemplate').textContent = job.templateName || '—';
+  document.getElementById('metaUser').innerHTML = job.userEmail ? userChip(job) : '—';
+  document.getElementById('metaCreated').textContent = job.createdAt ? new Date(job.createdAt).toLocaleString() : '—';
+  document.getElementById('metaCompleted').textContent = job.completedAt ? new Date(job.completedAt).toLocaleString() : '—';
+
+  const reconcileRow = document.getElementById('metaReconcileRow');
+  if (data && data.reconciledTotals) {
+    reconcileRow.style.display = '';
+    document.getElementById('metaReconcile').textContent = 'Reviewed & corrected';
+  } else {
+    reconcileRow.style.display = 'none';
+  }
+
+  const coverageRow = document.getElementById('metaCoverageRow');
+  if (data && data.coverageGap) {
+    coverageRow.style.display = '';
+    const parts = Object.entries(data.coverageGap)
+      .map(([k, v]) => `${k}: ${v.actual}/${v.expected}`)
+      .join(', ');
+    document.getElementById('metaCoverage').textContent = `MISSING ROWS: ${parts}`;
+    document.getElementById('metaCoverage').style.color = '#b91c1c';
+  } else if (data && data.coverageAdjusted) {
+    coverageRow.style.display = '';
+    document.getElementById('metaCoverage').textContent = 'Rows verified & corrected';
+    document.getElementById('metaCoverage').style.color = '';
+  } else {
+    coverageRow.style.display = 'none';
+  }
+
+  const parsedData = (data && typeof data.data !== 'undefined') ? data.data : null;
+  const outputEl = document.getElementById('outputPre');
+  let jsonVal = null;
+  if (parsedData != null) jsonVal = parsedData;
+  else if (job.templateName === 'schema-generation' && data && data.schema) jsonVal = data.schema;
+  if (jsonVal != null) {
+    outputEl.dataset.raw = JSON.stringify(jsonVal, null, 2);
+    outputEl.classList.add('json-tree');
+    outputEl.textContent = '';
+    outputEl.appendChild(buildJsonTree(jsonVal));
+  } else {
+    outputEl.removeAttribute('data-raw');
+    outputEl.classList.remove('json-tree');
+    outputEl.textContent = (data && data.markdown) ? '(no structured output — raw markdown job)' : '(none)';
+  }
+
+  const markdownEl = document.getElementById('markdownPre');
+  markdownEl.textContent = (data && data.markdown) ? data.markdown : '(none)';
+
+  if (status === 'done' && job.templateName !== 'schema-generation') loadCsv();
+
+  renderViewer();
+  schedulePoll();
+}
+
+function schedulePoll() {
+  if (pollTimer) clearTimeout(pollTimer);
+  pollTimer = null;
+  if (taskJob && (taskJob.status === 'in-progress' || taskJob.status === 'processing')) {
+    pollTimer = setTimeout(loadTask, 4000);
+  }
+}
+
+function fileUrl(name) {
+  return '/api/tasks/' + taskId + '/file?token=' + encodeURIComponent(pageToken) + '&name=' + encodeURIComponent(name);
+}
+
+function renderViewer() {
+  const files = taskJob?.storedFiles || [];
+  const body = document.getElementById('viewerBody');
+
+  if (!files.length) {
+    body.className = 'viewer-panel-body';
+    body.innerHTML = '<div class="viewer-placeholder"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg><div>No source document stored for this task.</div></div>';
+    return;
+  }
+
+  const pick = files.find(f => f.name === selectedFile) || files[0];
+  selectedFile = pick.name;
+
+  body.className = files.length > 1 ? 'viewer-panel-body has-bar' : 'viewer-panel-body';
+  body.innerHTML = '';
+  if (files.length > 1) {
+    const bar = document.createElement('div');
+    bar.className = 'viewer-file-bar';
+    const label = document.createElement('span');
+    label.className = 'file-bar-label';
+    label.textContent = 'File';
+    const select = document.createElement('select');
+    files.forEach(f => {
+      const o = document.createElement('option');
+      o.value = f.name;
+      o.textContent = f.name;
+      o.selected = f.name === selectedFile;
+      select.appendChild(o);
+    });
+    select.onchange = () => { selectedFile = select.value; renderViewer(); };
+    bar.appendChild(label);
+    bar.appendChild(select);
+    body.appendChild(bar);
+  }
+
+  if (pick.ext === 'pdf') {
+    body.insertAdjacentHTML('beforeend', '<embed src="' + fileUrl(pick.name) + '" type="application/pdf">');
+  } else if (['png', 'jpg', 'jpeg'].includes(pick.ext)) {
+    body.insertAdjacentHTML('beforeend', '<img src="' + fileUrl(pick.name) + '" alt="' + pick.name + '">');
+  } else if (['txt', 'html'].includes(pick.ext)) {
+    body.insertAdjacentHTML('beforeend', '<pre>Loading…</pre>');
+    apiFetch('/api/tasks/' + taskId + '/file?name=' + encodeURIComponent(pick.name)).then(r => r.ok ? r.text() : '(unable to load)').then(t => {
+      const pre = body.querySelector('pre');
+      if (pre) pre.textContent = t;
+    });
+  } else {
+    body.innerHTML = '<div class="viewer-placeholder"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg><div>Preview not available for this file type.</div></div>';
+  }
+}
+
+function switchTab(tab, btn) {
+  document.querySelectorAll('.detail-panel .settings-tab').forEach(t => t.classList.toggle('active', t === btn));
+  document.querySelectorAll('.detail-panel .settings-tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + tab));
+}
+
+function copyTabText(id) {
+  const el = document.getElementById(id);
+  if (el) navigator.clipboard.writeText(el.dataset.raw || el.textContent).then(() => {});
+}
+
+let taskCsv = null;
+
+async function loadCsv() {
+  const pre = document.getElementById('csvPre');
+  try {
+    const r = await apiFetch('/api/tasks/' + taskId + '/csv');
+    if (!r.ok) throw new Error('bad status');
+    const d = await r.json();
+    taskCsv = d;
+    if (pre) {
+      pre.textContent =
+        '# Charges (' + (d.rowCount || 0) + ' rows)\n' + (d.charges || '') +
+        '\n\n# Supplier / Customer Details\n' + (d.details || '');
+    }
+    const dlBtn = document.getElementById('dlChargesBtn');
+    const dlDetailsBtn = document.getElementById('dlDetailsBtn');
+    if (dlBtn) dlBtn.disabled = false;
+    if (dlDetailsBtn) dlDetailsBtn.disabled = false;
+  } catch (e) {
+    if (pre) pre.textContent = '(csv not available)';
+  }
+}
+
+function downloadCsv(type) {
+  if (!taskCsv) return;
+  const text = type === 'details' ? taskCsv.details : taskCsv.charges;
+  const base = (taskCsv.fileName || 'task').replace(/\.(pdf|png|jpg|jpeg|txt|docx|html|xlsx|xls)$/i, '');
+  const name = base + (type === 'details' ? '-details.csv' : '-charges.csv');
+  const blob = new Blob(['\uFEFF' + text], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  URL.revokeObjectURL(a.href);
+  a.remove();
+}
+
+const JSON_COLLAPSE_THRESHOLD = 200;
+
+function buildJsonTree(data) {
+  const root = document.createElement('div');
+  root.className = 'json-node';
+  appendJsonNode(root, data, null);
+  return root;
+}
+
+function appendJsonNode(parent, value, key) {
+  const line = document.createElement('div');
+  line.className = 'json-line';
+  const isContainer = value !== null && typeof value === 'object';
+  if (isContainer) {
+    const isArray = Array.isArray(value);
+    const keys = isArray ? value.map((_, i) => i) : Object.keys(value);
+    const count = keys.length;
+    const toggle = document.createElement('span');
+    toggle.className = 'json-toggle';
+    if (key !== null) {
+      const k = document.createElement('span');
+      k.className = 'json-key';
+      k.textContent = JSON.stringify(key) + ': ';
+      line.appendChild(k);
+    }
+    const badge = document.createElement('span');
+    badge.className = 'json-badge';
+    badge.textContent = isArray ? 'Array [' + count + ']' : 'Object {' + count + '}';
+    line.appendChild(badge);
+    const children = document.createElement('div');
+    children.className = 'json-children';
+    for (const k of keys) {
+      const item = document.createElement('div');
+      item.className = 'json-node';
+      appendJsonNode(item, value[k], isArray ? null : k);
+      children.appendChild(item);
+    }
+    toggle.textContent = '▾';
+    line.classList.add('json-line-container');
+    line.appendChild(toggle);
+    line.addEventListener('click', () => {
+      const collapsed = parent.classList.toggle('collapsed');
+      toggle.textContent = collapsed ? '▸' : '▾';
+    });
+    parent.appendChild(line);
+    parent.appendChild(children);
+    if (count > JSON_COLLAPSE_THRESHOLD) {
+      parent.classList.add('collapsed');
+      toggle.textContent = '▸';
+    }
+  } else {
+    if (key !== null) {
+      const k = document.createElement('span');
+      k.className = 'json-key';
+      k.textContent = JSON.stringify(key) + ': ';
+      line.appendChild(k);
+    }
+    const t = value === null ? 'null' : typeof value;
+    const v = document.createElement('span');
+    v.className = 'json-val json-val-' + t;
+    v.textContent = t === 'string' ? JSON.stringify(value) : String(value);
+    line.appendChild(v);
+    parent.appendChild(line);
+  }
+}
+
+function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+function userInitials(u) {
+  const fn = (u.userFirstName || '').trim(), ln = (u.userLastName || '').trim();
+  if (fn || ln) return ((fn[0] || '') + (ln[0] || '')).toUpperCase();
+  const local = (u.userEmail || '').split('@')[0].replace(/[0-9]+/g, '');
+  const parts = local.split(/[._\-\s]+/).filter(Boolean);
+  return (parts.slice(0, 2).map(p => (p[0] || '').toUpperCase()).join('')) || (u.userEmail ? u.userEmail[0].toUpperCase() : '?');
+}
+
+function userFullName(u) {
+  const fn = (u.userFirstName || '').trim(), ln = (u.userLastName || '').trim();
+  if (fn || ln) return [fn, ln].filter(Boolean).join(' ');
+  return u.userEmail;
+}
+
+function userChip(u) {
+  return '<div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;text-align:right;min-width:0">' +
+    '<div style="min-width:0">' +
+    '<div style="font-weight:600;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(userFullName(u)) + '</div>' +
+    '<div style="font-size:11px;color:var(--steel);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(u.userEmail) + '</div>' +
+    '</div>' +
+    '<div style="width:30px;height:30px;border-radius:50%;background:rgba(0,104,74,.1);color:var(--brand-green-dark);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">' + esc(userInitials(u)) + '</div>' +
+    '</div>';
+}
+
+async function deleteTask() {
+  if (!confirm('Delete this task permanently? The stored files will also be removed. This cannot be undone.')) return;
+  try {
+    const r = await apiFetch('/api/tasks/' + taskId, { method: 'DELETE' });
+    if (r.ok) location.href = tasksBackUrl();
+    else { const d = await r.json().catch(() => ({})); alert('Delete failed: ' + (d.error || 'Unknown error')); }
+  } catch (e) {
+    alert('Delete failed: ' + e.message);
+  }
+}
+
+function tasksBackUrl() {
+  const ref = document.referrer;
+  if (ref && ref.startsWith(location.origin)) return ref;
+  return '/tasks';
+}
+
+function closeRerunModal() {
+  document.getElementById('rerunModalOverlay').style.display = 'none';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const back = document.getElementById('backLink');
+  if (back) back.href = tasksBackUrl();
+  document.getElementById('rerunModalOverlay').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeRerunModal();
+  });
+});
+
+function openRerunModal() {
+  if (!taskJob) return;
+  const files = (taskJob.storedFiles || []).map(f => f.name).join(', ') || taskJob.fileName || 'unknown';
+  const tpl = taskJob.templateName ? 'Template: <b>' + esc(taskJob.templateName) + '</b>' : 'Template: <b>Custom schema</b>';
+  let schemaInfo = '';
+  let schema = taskJob.schema;
+  if (typeof schema === 'string') { try { schema = JSON.parse(schema); } catch (e) {} }
+  if (Array.isArray(schema)) schemaInfo = 'Schema: <b>' + schema.length + ' field' + (schema.length === 1 ? '' : 's') + '</b><br>';
+  document.getElementById('rerunModalBody').innerHTML =
+    '<p style="margin-bottom:var(--spacing-md)">This will rebuild the task result by re-processing the document with the same details:</p>' +
+    '<div style="font-size:13px;line-height:1.7">' +
+    'File: <b>' + esc(files || taskJob.fileName) + '</b><br>' +
+    tpl + '<br>' +
+    schemaInfo +
+    (taskJob.filter ? 'Filter: <b>applied</b><br>' : '') +
+    '</div>' +
+    '<div style="margin-top:var(--spacing-md);padding:var(--spacing-md);background:var(--surface);border-radius:var(--rounded-md);font-size:13px;color:var(--slate)">' +
+    'A new task will be created that reuses the original file and runs the full extraction again. This takes time and incurs Gemini API costs.' +
+    '</div>';
+  document.getElementById('rerunModalOverlay').style.display = 'flex';
+}
+
+async function confirmRerun() {
+  const btn = document.getElementById('confirmRerunBtn');
+  btn.disabled = true;
+  btn.textContent = 'Starting…';
+  try {
+    const r = await apiFetch('/api/tasks/' + taskId + '/rerun', { method: 'POST' });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { alert('Re-run failed: ' + (d.error || 'Unknown error')); btn.disabled = false; btn.textContent = 'Re-run'; return; }
+    location.href = '/tasks/' + d.jobId;
+  } catch (e) {
+    alert('Re-run failed: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = 'Re-run';
+  }
+}
+
+loadTask();
+</script>

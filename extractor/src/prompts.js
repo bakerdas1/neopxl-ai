@@ -71,6 +71,8 @@ RULES
    - Two entries are distinct if they differ in ANY attribute (date, time, flight number, registration, route, amount, service type, reference number, etc.) — never merge or deduplicate unless entries are 100% identical.
    - A single invoice frequently contains multiple flight movements or multiple charge lines for the same registration – keep each one as a separate array element.
    - Include all optional/secondary fields (dates, times, IDs, amounts, reference numbers, descriptions, quantities, rates, aircraft type, MTOW, seats, fuel quantity, etc.) for each entry, even if the schema marks them optional.
+   - DETAIL OVER SUMMARY: when a document contains both a summary/totals table AND a detail line-items table, extract array entries from the DETAIL line-items table. Never use aggregated summary/total rows (e.g. a single "Landing charge 2.661,18" total) as array items when the individual line items are present elsewhere in the document.
+   - NO EMPTY PLACEHOLDERS: never emit an empty string "" as a stand-in for a missing value. Use the actual value when present, otherwise null (scalars) or omit only if the field is not required.
 
 6. TYPE FIDELITY
    - Match schema types exactly: strings as strings, numbers as numbers (not quoted), arrays as arrays, objects as objects, booleans as true/false.
