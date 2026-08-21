@@ -21,7 +21,7 @@ import { verifyTotals, verifyCoverage, verifyCoveragePerPage, countRows } from '
 import { templates } from './extractor/src/services/templates.js';
 import { generateSchema } from './schema-service/generateSchema.js';
 import { initDb, closeDb } from './db.mjs';
-import { loadStorageConfig, getStorageConnectors, addStorageConnector, deleteStorageConnector, setActiveStorageConnector, putJobFiles, openJobFile, testS3Connection, deleteJobFiles } from './storage.mjs';
+import { loadStorageConfig, getStorageConnectors, getStorageConnector, addStorageConnector, deleteStorageConnector, setActiveStorageConnector, putJobFiles, openJobFile, testS3Connection, deleteJobFiles } from './storage.mjs';
 import { buildCsvExport } from './csvExport.mjs';
 
 const PORT = 3022;
@@ -1320,7 +1320,8 @@ const server = createServer(async (req, res) => {
       entry = stored.find(f => f.ext === 'pdf') || stored[0];
     }
     if (!entry) return sendJSON(res, 404, { error: 'No file stored for this task' });
-    const opened = await openJobFile(jobId, entry);
+    const connector = entry.storageId ? await getStorageConnector(entry.storageId) : null;
+    const opened = await openJobFile(jobId, entry, connector);
     if (!opened) return sendJSON(res, 404, { error: 'File not found' });
     res.writeHead(200, {
       'Content-Type': MIME[entry.ext] || 'application/octet-stream',
@@ -1383,7 +1384,8 @@ const server = createServer(async (req, res) => {
     if (!job) return sendJSON(res, 404, { error: 'Task not found' });
     if (job.templateName === 'schema-generation') return sendJSON(res, 400, { error: 'Schema generation tasks cannot be re-run' });
     if (!job.storedFiles || !job.storedFiles.length) return sendJSON(res, 400, { error: 'This task has no stored file to re-run' });
-    const opened = await openJobFile(taskId, job.storedFiles[0]);
+    const connector = job.storedFiles[0].storageId ? await getStorageConnector(job.storedFiles[0].storageId) : null;
+    const opened = await openJobFile(taskId, job.storedFiles[0], connector);
     if (!opened) return sendJSON(res, 400, { error: 'The stored file could not be read for re-run' });
     const chunks = [];
     for await (const c of opened.stream) chunks.push(c);

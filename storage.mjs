@@ -57,6 +57,11 @@ export async function getStorageConnectors() {
   return { connectors: connectors.map(c => ({ ...c, active: c.id === activeId })), activeId };
 }
 
+export async function getStorageConnector(id) {
+  const { connectors } = await loadConnectorList();
+  return connectors.find(c => c.id === id) || null;
+}
+
 export async function addStorageConnector(conn) {
   const list = await loadConnectorList();
   const exists = list.connectors.findIndex(c => c.id === conn.id);
@@ -115,6 +120,7 @@ function safeName(filename) {
 
 export async function putJobFiles(jobId, files) {
   const saved = [];
+  const storageId = storageCfg?.id || 'local';
   if (isS3Enabled()) {
     const bucket = storageCfg.s3.bucket;
     for (const f of files) {
@@ -126,7 +132,7 @@ export async function putJobFiles(jobId, files) {
         Body: f.data,
         ContentType: MIME[ext] || 'application/octet-stream',
       }));
-      saved.push({ name, ext });
+      saved.push({ name, ext, storageId });
     }
   } else {
     const dir = join(UPLOAD_DIR, jobId);
@@ -134,18 +140,30 @@ export async function putJobFiles(jobId, files) {
     for (const f of files) {
       const name = safeName(f.filename);
       await writeFile(join(dir, name), f.data);
-      saved.push({ name, ext: extname(name).slice(1).toLowerCase() });
+      saved.push({ name, ext: extname(name).slice(1).toLowerCase(), storageId });
     }
   }
   return saved;
 }
 
-export async function openJobFile(jobId, entry) {
-  if (isS3Enabled()) {
+export async function openJobFile(jobId, entry, connector) {
+  const cfg = connector || storageCfg;
+  const isS3 = cfg?.type === 's3' && !!cfg.s3;
+  if (isS3) {
+    const client = connector
+      ? new S3Client({
+          region: cfg.s3.region || 'us-east-1',
+          endpoint: cfg.s3.endpoint || undefined,
+          forcePathStyle: !!cfg.s3.endpoint,
+          credentials: { accessKeyId: cfg.s3.accessKeyId, secretAccessKey: cfg.s3.secretAccessKey },
+        })
+      : s3Client;
+    const prefix = (cfg.s3.prefix || '').replace(/^\/+|\/+$/g, '');
+    const key = prefix ? `${prefix}/${jobId}/${entry.name}` : `${jobId}/${entry.name}`;
     try {
-      const out = await s3Client.send(new GetObjectCommand({
-        Bucket: storageCfg.s3.bucket,
-        Key: keyFor(jobId, entry.name),
+      const out = await client.send(new GetObjectCommand({
+        Bucket: cfg.s3.bucket,
+        Key: key,
       }));
       let stream;
       if (typeof out.Body?.transformToWebStream === 'function') {
@@ -173,25 +191,37 @@ export async function openJobFile(jobId, entry) {
 
 export async function deleteJobFiles(jobId, entries) {
   if (!entries || !entries.length) return;
-  if (isS3Enabled()) {
-    try {
-      await s3Client.send(new DeleteObjectsCommand({
-        Bucket: storageCfg.s3.bucket,
-        Delete: { Objects: entries.map((e) => ({ Key: keyFor(jobId, e.name) })), Quiet: true },
-      }));
-    } catch (e) {
-      console.error('s3 delete failed', e.message);
+  for (const entry of entries) {
+    const connId = entry.storageId;
+    const conn = connId ? await getStorageConnector(connId) : storageCfg;
+    const isS3 = conn?.type === 's3' && !!conn.s3;
+    if (isS3) {
+      const client = connId
+        ? new S3Client({
+            region: conn.s3.region || 'us-east-1',
+            endpoint: conn.s3.endpoint || undefined,
+            forcePathStyle: !!conn.s3.endpoint,
+            credentials: { accessKeyId: conn.s3.accessKeyId, secretAccessKey: conn.s3.secretAccessKey },
+          })
+        : s3Client;
+      try {
+        const prefix = (conn.s3.prefix || '').replace(/^\/+|\/+$/g, '');
+        const key = prefix ? `${prefix}/${jobId}/${entry.name}` : `${jobId}/${entry.name}`;
+        await client.send(new DeleteObjectsCommand({
+          Bucket: conn.s3.bucket,
+          Delete: { Objects: [{ Key: key }], Quiet: true },
+        }));
+      } catch (e) {
+        console.error('s3 delete failed', e.message);
+      }
+    } else {
+      try {
+        const filePath = join(UPLOAD_DIR, jobId, entry.name);
+        if (basename(filePath) === entry.name) await rm(filePath, { force: true });
+      } catch {}
     }
-    return;
   }
-  const dir = join(UPLOAD_DIR, jobId);
-  try {
-    for (const e of entries) {
-      const filePath = join(dir, e.name);
-      if (basename(filePath) === e.name) await rm(filePath, { force: true });
-    }
-    await rmdir(dir);
-  } catch {}
+  try { await rmdir(join(UPLOAD_DIR, jobId)); } catch {}
 }
 
 export async function testS3Connection(cfg) {
