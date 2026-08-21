@@ -6,7 +6,7 @@
   <div class="ref-grid">
     <div class="ref-item">
       <div class="ref-item-label">Base URL</div>
-      <code class="ref-item-value">https://pars2.neopxl.online</code>
+      <code class="ref-item-value" id="refBaseUrl"></code>
     </div>
     <div class="ref-item">
       <div class="ref-item-label">Authentication</div>
@@ -34,7 +34,7 @@
     <tr><td><code>pages</code></td><td>string</td><td>no</td><td>Page range to extract, e.g. <code>1-9</code>, <code>3</code>, or <code>1,3,5-7</code> (default: all pages)</td></tr>
   </table>
   <div class="code-block" id="exExtract">
-curl -X POST 'https://pars2.neopxl.online/extract' \
+curl -X POST '{{BASE_URL}}/extract' \
   -H 'X-API-Key: YOUR_API_KEY' \
   -F 'file=@"/path/to/document.pdf"' \
   -F 'template=np_001'
@@ -52,7 +52,7 @@ curl -X POST 'https://pars2.neopxl.online/extract' \
   <div class="endpoint-head"><span class="method method-post">POST</span><code class="endpoint-path">/api/extract</code></div>
   <p>Same as <code>/extract</code> but supports both sync and async modes. Append <code>?mode=async</code> to return a <code>jobId</code> immediately; omit it to wait for the full result synchronously (can be slow for large documents). Accepts the same fields (<code>file</code>, <code>template</code>, <code>schema</code>, <code>filter</code>, <code>pages</code>).</p>
   <div class="code-block" id="exApiExtract">
-curl -X POST 'https://pars2.neopxl.online/api/extract?mode=async' \
+curl -X POST '{{BASE_URL}}/api/extract?mode=async' \
   -H 'X-API-Key: YOUR_API_KEY' \
   -F 'file=@"/path/to/document.pdf"' \
   -F 'schema=[{"name":"invoiceNumber","type":"string","description":"Invoice number"}]'
@@ -65,7 +65,7 @@ curl -X POST 'https://pars2.neopxl.online/api/extract?mode=async' \
   <div class="endpoint-head"><span class="method method-post">POST</span><code class="endpoint-path">/api/classify</code></div>
   <p>Analyse a document and return the best-matching template based on keyword matching plus AI classification.</p>
   <div class="code-block" id="exClassify">
-curl -X POST 'https://pars2.neopxl.online/api/classify' \
+curl -X POST '{{BASE_URL}}/api/classify' \
   -H 'X-API-Key: YOUR_API_KEY' \
   -F 'file=@"/path/to/document.pdf"'
   <button class="btn-copy-code" onclick="copyCurl('exClassify')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
@@ -93,7 +93,7 @@ curl -X POST 'https://pars2.neopxl.online/api/classify' \
   </table>
   <div class="code-block" id="exList">
 curl -H 'X-API-Key: YOUR_API_KEY' \
-  'https://pars2.neopxl.online/api/tasks?limit=25&offset=0'
+  '{{BASE_URL}}/api/tasks?limit=25&offset=0'
   <button class="btn-copy-code" onclick="copyCurl('exList')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
   </div>
   <details class="resp"><summary>Response</summary><pre>{
@@ -113,7 +113,7 @@ curl -H 'X-API-Key: YOUR_API_KEY' \
   <p>Get a single task with full status, timing, cost and token usage. Use this to poll a job after submitting.</p>
   <div class="code-block" id="exTask">
 curl -H 'X-API-Key: YOUR_API_KEY' \
-  'https://pars2.neopxl.online/api/tasks/c368fc4c6f44e76e'
+  '{{BASE_URL}}/api/tasks/c368fc4c6f44e76e'
   <button class="btn-copy-code" onclick="copyCurl('exTask')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
   </div>
 </div>
@@ -123,7 +123,7 @@ curl -H 'X-API-Key: YOUR_API_KEY' \
   <p>Get the extracted JSON data for a completed task.</p>
   <div class="code-block" id="exData">
 curl -H 'X-API-Key: YOUR_API_KEY' \
-  'https://pars2.neopxl.online/api/tasks/c368fc4c6f44e76e/data'
+  '{{BASE_URL}}/api/tasks/c368fc4c6f44e76e/data'
   <button class="btn-copy-code" onclick="copyCurl('exData')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
   </div>
 </div>
@@ -133,7 +133,7 @@ curl -H 'X-API-Key: YOUR_API_KEY' \
   <p>Export the extracted line items for a completed task as a CSV-ready payload. Returns <code>{ fileName, charges, details, rowCount }</code>.</p>
   <div class="code-block" id="exCsv">
 curl -H 'X-API-Key: YOUR_API_KEY' \
-  'https://pars2.neopxl.online/api/tasks/c368fc4c6f44e76e/csv'
+  '{{BASE_URL}}/api/tasks/c368fc4c6f44e76e/csv'
   <button class="btn-copy-code" onclick="copyCurl('exCsv')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
   </div>
 </div>
@@ -144,7 +144,7 @@ curl -H 'X-API-Key: YOUR_API_KEY' \
   <div class="code-block" id="exFile">
 curl -H 'X-API-Key: YOUR_API_KEY' \
   -o invoice.pdf \
-  'https://pars2.neopxl.online/api/tasks/c368fc4c6f44e76e/file'
+  '{{BASE_URL}}/api/tasks/c368fc4c6f44e76e/file'
   <button class="btn-copy-code" onclick="copyCurl('exFile')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
   </div>
 </div>
@@ -153,7 +153,7 @@ curl -H 'X-API-Key: YOUR_API_KEY' \
   <div class="endpoint-head"><span class="method method-post">POST</span><code class="endpoint-path">/api/tasks/:id/rerun</code></div>
   <p>Re-run an extraction using the same stored file, template or schema. Returns a new <code>jobId</code>.</p>
   <div class="code-block" id="exRerun">
-curl -X POST 'https://pars2.neopxl.online/api/tasks/c368fc4c6f44e76e/rerun' \
+curl -X POST '{{BASE_URL}}/api/tasks/c368fc4c6f44e76e/rerun' \
   -H 'X-API-Key: YOUR_API_KEY'
   <button class="btn-copy-code" onclick="copyCurl('exRerun')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
   </div>
@@ -163,7 +163,7 @@ curl -X POST 'https://pars2.neopxl.online/api/tasks/c368fc4c6f44e76e/rerun' \
   <div class="endpoint-head"><span class="method method-delete">DELETE</span><code class="endpoint-path">/api/tasks/:id</code></div>
   <p>Delete a task and its stored files permanently.</p>
   <div class="code-block" id="exDel">
-curl -X DELETE 'https://pars2.neopxl.online/api/tasks/c368fc4c6f44e76e' \
+curl -X DELETE '{{BASE_URL}}/api/tasks/c368fc4c6f44e76e' \
   -H 'X-API-Key: YOUR_API_KEY'
   <button class="btn-copy-code" onclick="copyCurl('exDel')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
   </div>
@@ -181,7 +181,7 @@ curl -X DELETE 'https://pars2.neopxl.online/api/tasks/c368fc4c6f44e76e' \
     <tr><td><code>model</code></td><td>string</td><td>no</td><td>Model override (default <code>gemini-2.5-flash</code>)</td></tr>
   </table>
   <div class="code-block" id="exSchema">
-curl -X POST 'https://pars2.neopxl.online/api/schema/generate' \
+curl -X POST '{{BASE_URL}}/api/schema/generate' \
   -H 'X-API-Key: YOUR_API_KEY' \
   -F 'file=@"/path/to/sample1.pdf"' \
   -F 'file=@"/path/to/sample2.pdf"' \
@@ -218,7 +218,7 @@ curl -X POST 'https://pars2.neopxl.online/api/schema/generate' \
   <p>List all extraction templates.</p>
   <div class="code-block" id="exTplList">
 curl -H 'X-API-Key: YOUR_API_KEY' \
-  'https://pars2.neopxl.online/api/templates'
+  '{{BASE_URL}}/api/templates'
   <button class="btn-copy-code" onclick="copyCurl('exTplList')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
   </div>
 </div>
@@ -227,7 +227,7 @@ curl -H 'X-API-Key: YOUR_API_KEY' \
   <div class="endpoint-head"><span class="method method-post">POST</span><code class="endpoint-path">/api/templates</code></div>
   <p>Create a template. Body is JSON with <code>name</code>, <code>schema</code> (JSON string of field definitions), optional <code>filter</code>, <code>keywords</code> (comma-separated, used for classification), <code>domain</code> (e.g. <code>aviation</code> — selects the domain profile for prompts, charge-type aliases and field vocabulary), <code>dateFormat</code>/<code>dateInputFormat</code>, and <code>verifyCoverage</code>.</p>
   <div class="code-block" id="exTplCreate">
-curl -X POST 'https://pars2.neopxl.online/api/templates' \
+curl -X POST '{{BASE_URL}}/api/templates' \
   -H 'X-API-Key: YOUR_API_KEY' \
   -H 'Content-Type: application/json' \
   -d '{

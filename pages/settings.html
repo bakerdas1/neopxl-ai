@@ -1,6 +1,7 @@
 <div class="topbar"><h1>Settings</h1></div>
 <div class="settings-tabs" id="settingsTabs">
   <button class="settings-tab active" data-stab="templates">Templates</button>
+  <button class="settings-tab" data-stab="ai">AI Settings</button>
   <button class="settings-tab" data-stab="users">Users</button>
   <button class="settings-tab" data-stab="companies">Companies</button>
   <button class="settings-tab" data-stab="storage">Storage</button>
@@ -10,6 +11,31 @@
   <div class="settings-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--spacing-md)"><h3>Templates</h3><button class="btn btn-primary btn-sm" onclick="openTplModal()">New Template</button></div>
     <div id="templatesList"></div>
+  </div>
+</div>
+
+<div id="stab-ai" class="settings-tab-content">
+  <div class="settings-card">
+    <h3>Gemini Configuration</h3>
+    <div class="form-group"><label>Model</label>
+      <select id="settingModel">
+        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+        <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+        <option value="gemini-flash-latest">Gemini Flash Latest</option>
+        <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
+      </select>
+    </div>
+    <div style="font-size:12px;color:var(--steel);margin-top:var(--spacing-sm)">API key is configured via the <code>GEMINI_API_KEY</code> environment variable.</div>
+    <h3 style="margin-top:var(--spacing-lg)">Extraction Prompt</h3>
+    <p style="font-size:12px;color:var(--steel)">Base system prompt used for every extraction.</p>
+    <div class="form-group"><label>Base Prompt</label><textarea id="settingBasePrompt" rows="12"></textarea></div>
+    <h3 style="margin-top:var(--spacing-lg)">Classification Prompt</h3>
+    <p style="font-size:12px;color:var(--steel)">Used by auto-classification. <code>{{TEMPLATES}}</code> is replaced with the live template list at runtime.</p>
+    <div class="form-group"><label>Classify Prompt</label><textarea id="settingClassifyPrompt" rows="8"></textarea></div>
+    <h3 style="margin-top:var(--spacing-lg)">Domains</h3>
+    <p style="font-size:12px;color:var(--steel)">JSON map of domain profiles.</p>
+    <div class="form-group"><label>Domains (JSON)</label><textarea id="settingDomains" rows="14"></textarea></div>
+    <button class="btn btn-primary" onclick="saveAiSettings()">Save</button>
   </div>
 </div>
 
@@ -135,7 +161,11 @@
 const currentUser = JSON.parse(localStorage.getItem('neopxl_user') || '{}');
 
 // Tab switching
-document.querySelectorAll('.settings-tab').forEach(t=>{t.addEventListener('click',()=>{document.querySelectorAll('.settings-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.settings-tab-content').forEach(x=>x.classList.remove('active'));t.classList.add('active');document.getElementById('stab-'+t.dataset.stab).classList.add('active');if(t.dataset.stab==='users')loadUsers();if(t.dataset.stab==='companies')loadCompanies();if(t.dataset.stab==='templates')loadTemplateList();if(t.dataset.stab==='storage')loadStorageSettings()})});
+document.querySelectorAll('.settings-tab').forEach(t=>{t.addEventListener('click',()=>{document.querySelectorAll('.settings-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.settings-tab-content').forEach(x=>x.classList.remove('active'));t.classList.add('active');document.getElementById('stab-'+t.dataset.stab).classList.add('active');if(t.dataset.stab==='users')loadUsers();if(t.dataset.stab==='companies')loadCompanies();if(t.dataset.stab==='templates')loadTemplateList();if(t.dataset.stab==='storage')loadStorageSettings();if(t.dataset.stab==='ai')loadAiSettings()})});
+
+// AI Settings
+async function loadAiSettings(){const r=await apiFetch('/api/settings').then(d=>d.json()).catch(()=>({}));document.getElementById('settingModel').value=r.model||'gemini-2.5-flash';document.getElementById('settingBasePrompt').value=r.basePrompt||'';document.getElementById('settingClassifyPrompt').value=r.classifyPrompt||'';document.getElementById('settingDomains').value=r.domains?JSON.stringify(r.domains,null,2):'';}
+async function saveAiSettings(){let domains;try{domains=JSON.parse(document.getElementById('settingDomains').value)}catch(e){return alert('Domains JSON is invalid: '+e.message)}await apiFetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:document.getElementById('settingModel').value,basePrompt:document.getElementById('settingBasePrompt').value,classifyPrompt:document.getElementById('settingClassifyPrompt').value,domains:domains})});alert('Saved')}
 
 // Users
 function userInitials(u){const fn=(u.first_name||'').trim(),ln=(u.last_name||'').trim();if(fn||ln)return((fn[0]||'')+(ln[0]||'')).toUpperCase();const local=(u.email||'').split('@')[0].replace(/[0-9]+/g,'');const parts=local.split(/[._\-\s]+/).filter(Boolean);return(parts.slice(0,2).map(p=>(p[0]||'').toUpperCase()).join(''))||(u.email?u.email[0].toUpperCase():'?')}
@@ -211,7 +241,7 @@ async function deleteStorage(id){if(!confirm('Delete this connector?'))return;aw
 ['userModalOverlay','companyModalOverlay','storageModalOverlay'].forEach(id=>document.getElementById(id).addEventListener('click',e=>{if(e.target===e.currentTarget){document.getElementById(id).style.display='none'}}));
 document.getElementById('tplModalOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeTplModal()});
 
-loadUsers();loadCompanies();loadTemplateList();
+loadAiSettings();loadUsers();loadCompanies();loadTemplateList();
 const keepChips = initChipInput('keepIfChips', []);
 const dropChips = initChipInput('dropIfChips', []);
 </script>

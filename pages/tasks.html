@@ -614,6 +614,7 @@ loadTasks();loadTemplates();
 setInterval(loadTasks, 5000);
 const tplKeepChips = initChipInput('tplKeepIfChips', []);
 const tplDropChips = initChipInput('tplDropIfChips', []);
+(function loadDomainOptions(){apiFetch('/api/settings').then(d=>d.json()).then(s=>{const dl=document.getElementById('domainOptions');if(!dl)return;dl.innerHTML='';Object.keys(s.domains||{}).forEach(k=>{const o=document.createElement('option');o.value=k;dl.appendChild(o)})}).catch(()=>{})})();
 
 (function setupInfiniteScroll() {
   const sentinel = document.getElementById('tasksMoreSentinel');

@@ -1211,7 +1211,25 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === '/reference') {
-    return servePage('reference.html', 'API Reference', 'reference');
+    const base = process.env.BASE_URL || `http://localhost:${PORT}`;
+    const layout = readFileSync(join(__dirname, 'layout.html'), 'utf-8');
+    let content = readFileSync(join(__dirname, 'pages', 'reference.html'), 'utf-8');
+    content = content.replace(/\{\{BASE_URL\}\}/g, base);
+    content = content.replace('id="refBaseUrl"', `id="refBaseUrl">${base}`);
+    const html = layout
+      .replace('{{TITLE}}', 'API Reference')
+      .split('{{CONTENT}}').join(content)
+      .replace('{{HOME_ACTIVE}}', '')
+      .replace('{{TASKS_ACTIVE}}', '')
+      .replace('{{KEYS_ACTIVE}}', '')
+      .replace('{{REFERENCE_ACTIVE}}', 'active')
+      .replace('{{DEV_ACTIVE}}', 'active')
+      .replace('{{DEV_OPEN}}', 'block')
+      .replace('{{SCHEMAS_ACTIVE}}', '')
+      .replace('{{SETTINGS_ACTIVE}}', '');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(html);
+    return;
   }
 
   if (url.pathname === '/schemas') {
@@ -1414,6 +1432,40 @@ const server = createServer(async (req, res) => {
     const user = await authGuard(req, res);
     if (!user) return;
     return sendJSON(res, 200, { id: user.id, email: user.email, role: user.role, company_id: user.company_id, company_name: user.company_name, first_name: user.first_name || null, last_name: user.last_name || null });
+  }
+
+  if (url.pathname === '/api/settings' && req.method === 'GET') {
+    const authUser = await authGuard(req, res);
+    if (!authUser || authUser.role !== 1) return sendJSON(res, 403, { error: 'Admin only' });
+    const ai = getAiConfig();
+    return sendJSON(res, 200, {
+      model: process.env.MODEL || 'gemini-2.5-flash',
+      basePrompt: ai.basePrompt,
+      classifyPrompt: ai.classifyPrompt,
+      domains: ai.domains,
+    });
+  }
+
+  if (url.pathname === '/api/settings' && req.method === 'POST') {
+    const authUser = await authGuard(req, res);
+    if (!authUser || authUser.role !== 1) return sendJSON(res, 403, { error: 'Admin only' });
+    const body = await new Promise((res, rej) => {
+      const c = []; req.on('data', d => c.push(d)); req.on('end', () => res(Buffer.concat(c).toString())); req.on('error', rej);
+    });
+    try {
+      const data = JSON.parse(body);
+      if (data.model) {
+        process.env.MODEL = data.model;
+      }
+      if (typeof data.basePrompt === 'string') await setSetting('ai.base_prompt', data.basePrompt);
+      if (typeof data.classifyPrompt === 'string') await setSetting('ai.classify_prompt', data.classifyPrompt);
+      if (data.domains && typeof data.domains === 'object') await setSetting('domains', data.domains);
+      await loadAiConfig();
+      sendJSON(res, 200, { success: true });
+    } catch (e) {
+      sendJSON(res, 400, { error: e.message });
+    }
+    return;
   }
 
   if (url.pathname === '/api/storage' && req.method === 'GET') {
