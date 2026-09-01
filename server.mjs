@@ -1,7 +1,7 @@
 import { createServer } from 'http';
 import { writeFile, mkdtemp, rm } from 'fs/promises';
 import { readFileSync } from 'fs';
-import { join, extname } from 'path';
+import { join, extname, basename } from 'path';
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -28,6 +28,7 @@ const PORT = 3022;
 const ALLOWED = ['pdf', 'png', 'jpg', 'jpeg', 'txt', 'docx', 'html', 'xlsx', 'xls', 'csv'];
 const SCHEMA_ALLOWED = ['pdf', 'docx', 'png', 'jpg', 'jpeg', 'xlsx', 'xls', 'csv'];
 const MAX_SCHEMA_FILES = 10;
+const MAX_BODY_SIZE = 50 * 1024 * 1024; // 50MB limit
 
 // Default domain profiles and prompt templates. These are overridable at runtime
 // via app_settings (editable under AI Settings) — nothing here is a hard contract.
@@ -103,13 +104,46 @@ async function persistJobFiles(jobId, files) {
   return putJobFiles(jobId, files);
 }
 
+async function readBodyBuffer(req, maxSize = MAX_BODY_SIZE) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', chunk => {
+      size += chunk.length;
+      if (size > maxSize) {
+        req.destroy();
+        reject(new Error('Request payload exceeds maximum allowed size (50MB)'));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+async function readBodyText(req, maxSize = 5 * 1024 * 1024) {
+  const buf = await readBodyBuffer(req, maxSize);
+  return buf.toString('utf-8');
+}
+
+function safeUploadFilename(fn) {
+  return (fn || 'document').split(/[/\\]/).pop().replace(/[^\w.\- ]+/g, '_') || 'document';
+}
+
 function getBoundary(contentType) {
   const m = contentType?.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
   return (m?.[1] || m?.[2])?.trim();
 }
 
 function sendJSON(res, code, data) {
-  res.writeHead(code, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+  res.writeHead(code, {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'SAMEORIGIN',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+  });
   res.end(JSON.stringify(data));
 }
 
@@ -1189,7 +1223,12 @@ const server = createServer(async (req, res) => {
       .replace('{{DEV_OPEN}}', (activePage === 'keys' || activePage === 'reference') ? 'block' : 'none')
       .replace('{{SCHEMAS_ACTIVE}}', activePage === 'schemas' ? 'active' : '')
       .replace('{{SETTINGS_ACTIVE}}', activePage === 'settings' ? 'active' : '');
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'SAMEORIGIN',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+    });
     res.end(html);
   }
 
@@ -1413,9 +1452,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === '/api/login' && req.method === 'POST') {
-    const body = await new Promise((res, rej) => {
-      const c = []; req.on('data', d => c.push(d)); req.on('end', () => res(Buffer.concat(c).toString())); req.on('error', rej);
-    });
+    const body = await readBodyText(req, 1024 * 1024);
     try {
       const { email, password } = JSON.parse(body);
       const user = await getUserByEmail(email);
@@ -1451,9 +1488,7 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/api/settings' && req.method === 'POST') {
     const authUser = await authGuard(req, res);
     if (!authUser || authUser.role !== 1) return sendJSON(res, 403, { error: 'Admin only' });
-    const body = await new Promise((res, rej) => {
-      const c = []; req.on('data', d => c.push(d)); req.on('end', () => res(Buffer.concat(c).toString())); req.on('error', rej);
-    });
+    const body = await readBodyText(req, 5 * 1024 * 1024);
     try {
       const data = JSON.parse(body);
       if (data.model) {
@@ -1486,9 +1521,7 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/api/storage/test' && req.method === 'POST') {
     const authUser = await authGuard(req, res);
     if (!authUser || authUser.role !== 1) return sendJSON(res, 403, { error: 'Admin only' });
-    const body = await new Promise((res, rej) => {
-      const c = []; req.on('data', d => c.push(d)); req.on('end', () => res(Buffer.concat(c).toString())); req.on('error', rej);
-    });
+    const body = await readBodyText(req, 1024 * 1024);
     try {
       const data = JSON.parse(body);
       if (data.type === 'local') return sendJSON(res, 200, { ok: true });
@@ -1516,9 +1549,7 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/api/storage' && req.method === 'POST') {
     const authUser = await authGuard(req, res);
     if (!authUser || authUser.role !== 1) return sendJSON(res, 403, { error: 'Admin only' });
-    const body = await new Promise((res, rej) => {
-      const c = []; req.on('data', d => c.push(d)); req.on('end', () => res(Buffer.concat(c).toString())); req.on('error', rej);
-    });
+    const body = await readBodyText(req, 1024 * 1024);
     try {
       const data = JSON.parse(body);
       if (!data.name || !data.name.trim()) return sendJSON(res, 400, { error: 'Connection name is required' });
@@ -1547,9 +1578,7 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/api/storage/active' && req.method === 'POST') {
     const authUser = await authGuard(req, res);
     if (!authUser || authUser.role !== 1) return sendJSON(res, 403, { error: 'Admin only' });
-    const body = await new Promise((res, rej) => {
-      const c = []; req.on('data', d => c.push(d)); req.on('end', () => res(Buffer.concat(c).toString())); req.on('error', rej);
-    });
+    const body = await readBodyText(req, 1024 * 1024);
     try {
       const data = JSON.parse(body);
       const list = await setActiveStorageConnector(data.id);
@@ -1576,7 +1605,7 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/api/users' && req.method === 'POST') {
     const authUser = await authGuard(req, res);
     if (!authUser || authUser.role !== 1) return sendJSON(res, 403, { error: 'Admin only' });
-    const body = await new Promise((res, rej) => { const c = []; req.on('data', d => c.push(d)); req.on('end', () => res(Buffer.concat(c).toString())); req.on('error', rej); });
+    const body = await readBodyText(req, 1024 * 1024);
     try {
       const { email, password, role, company_id, first_name, last_name } = JSON.parse(body);
       const company = (await getCompanies()).find(c => c.id === company_id);
@@ -1592,7 +1621,7 @@ const server = createServer(async (req, res) => {
     if (!authUser || authUser.role !== 1) return sendJSON(res, 403, { error: 'Admin only' });
     const id = url.pathname.split('/').pop();
     if (req.method === 'DELETE') { const ok = await deleteUser(id); return sendJSON(res, ok ? 200 : 404, ok ? { success: true } : { error: 'Not found' }); }
-    const body = await new Promise((res, rej) => { const c = []; req.on('data', d => c.push(d)); req.on('end', () => res(Buffer.concat(c).toString())); req.on('error', rej); });
+    const body = await readBodyText(req, 1024 * 1024);
     try {
       const data = JSON.parse(body); const updates = {};
       if (data.email) updates.email = data.email;
@@ -1616,7 +1645,7 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/api/keys' && req.method === 'POST') {
     const user = await authGuard(req, res);
     if (!user) return;
-    const body = await new Promise((res, rej) => { const c = []; req.on('data', d => c.push(d)); req.on('end', () => res(Buffer.concat(c).toString())); req.on('error', rej); });
+    const body = await readBodyText(req, 1024 * 1024);
     try {
       const { name } = JSON.parse(body);
       const k = await createApiKey(user.id, name);
@@ -1642,7 +1671,7 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/api/companies' && req.method === 'POST') {
     const authUser = await authGuard(req, res);
     if (!authUser || authUser.role !== 1) return sendJSON(res, 403, { error: 'Admin only' });
-    const body = await new Promise((res, rej) => { const c = []; req.on('data', d => c.push(d)); req.on('end', () => res(Buffer.concat(c).toString())); req.on('error', rej); });
+    const body = await readBodyText(req, 1024 * 1024);
     try { const { name } = JSON.parse(body); sendJSON(res, 200, await addCompany(name)); } catch (e) { sendJSON(res, 400, { error: e.message }); }
     return;
   }
@@ -1651,7 +1680,7 @@ const server = createServer(async (req, res) => {
     if (!authUser || authUser.role !== 1) return sendJSON(res, 403, { error: 'Admin only' });
     const id = url.pathname.split('/').pop();
     if (req.method === 'DELETE') { const ok = await deleteCompany(id); return sendJSON(res, ok ? 200 : 404, ok ? { success: true } : { error: 'Not found' }); }
-    const body = await new Promise((res, rej) => { const c = []; req.on('data', d => c.push(d)); req.on('end', () => res(Buffer.concat(c).toString())); req.on('error', rej); });
+    const body = await readBodyText(req, 1024 * 1024);
     try { const { name } = JSON.parse(body); const c = await updateCompany(id, name); sendJSON(res, c ? 200 : 404, c || { error: 'Not found' }); } catch (e) { sendJSON(res, 400, { error: e.message }); }
     return;
   }
@@ -1663,9 +1692,7 @@ const server = createServer(async (req, res) => {
       const boundary = getBoundary(req.headers['content-type']);
       if (!boundary) return sendJSON(res, 400, { error: 'No boundary' });
 
-      const buf = await new Promise((res, rej) => {
-        const c = []; req.on('data', d => c.push(d)); req.on('end', () => res(Buffer.concat(c))); req.on('error', rej);
-      });
+      const buf = await readBodyBuffer(req, MAX_BODY_SIZE);
       const raw = buf.toString('latin1');
       const parts = raw.split(`--${boundary}`).filter(p => p.includes('name='));
       let file = null;
@@ -1682,7 +1709,7 @@ const server = createServer(async (req, res) => {
         const fn = header.match(/filename="([^"]*)"/)?.[1];
         if (fn !== undefined) {
           const dataStr = body.endsWith('\r\n') ? body.slice(0, -2) : body;
-          file = { data: Buffer.from(dataStr, 'latin1'), filename: fn || 'file' };
+          file = { data: Buffer.from(dataStr, 'latin1'), filename: safeUploadFilename(fn) };
         } else if (name) {
           fields[name] = body.replace(/\r?\n$/, '');
         }
@@ -1705,7 +1732,7 @@ const server = createServer(async (req, res) => {
         if (tpl) tplName = tpl.name;
       }
       const wallStart = Date.now();
-      jobs.set(jobId, { status: 'processing', page: 0, totalPages: 0 });
+      jobs.set(jobId, { status: 'processing', page: 0, totalPages: 0, userId: user.id });
       await addJob(jobId, { fileName: file.filename, status: 'in-progress', schema: fields.schema || null, filter: fields.filter || null, templateName: tplName, createdAt: wallStart }, user.id);
       try { await updateJob(jobId, { storedFiles: await persistJobFiles(jobId, [file]) }); } catch (e) { console.error('persist failed', e); }
 
@@ -1713,11 +1740,12 @@ const server = createServer(async (req, res) => {
         let tmpDir;
         try {
           tmpDir = await mkdtemp(join(tmpdir(), 'documind-'));
-          const tmpPath = join(tmpDir, file.filename);
+          const safeFn = safeUploadFilename(file.filename);
+          const tmpPath = join(tmpDir, safeFn);
           await writeFile(tmpPath, file.data);
 
           const coreResult0 = applyPageRange(await convertDocument({ filePath: tmpPath, model, concurrency: 6, jobId }), fields.pages);
-          jobs.set(jobId, { ...jobs.get(jobId), totalPages: coreResult0.pages.length });
+          jobs.set(jobId, { ...jobs.get(jobId), totalPages: coreResult0.pages.length, userId: user.id });
 
           const { schemaUsed, filterUsed, verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain } = await parseSchema(fields);
 
@@ -1758,17 +1786,17 @@ const server = createServer(async (req, res) => {
             };
 
             const flags = { ...(reconciled ? { reconciledTotals: true } : {}), ...(coverageAdjusted ? { coverageAdjusted: true } : {}), ...(coverageGap ? { coverageGap } : {}) };
-            jobs.set(jobId, { status: 'done', meta, data: { success: true, data: filterApplied, markdown, fileName: coreResult.fileName, ...flags } });
+            jobs.set(jobId, { status: 'done', meta, data: { success: true, data: filterApplied, markdown, fileName: coreResult.fileName, ...flags }, userId: user.id });
             await updateJob(jobId, { status: 'done', pages: coreResult.pages.length, timing: meta.timing, tokens: meta.tokens, cost: meta.cost, geminiCalls: coreResult.source === 'pymupdf' ? (extractUsage.calls || 0) : coreResult.pages.length + (extractUsage.calls || 1), resultData: { success: true, data: filterApplied, markdown, fileName: coreResult.fileName, ...flags } });
           } else {
             markdown = coreResult.pymupdfMarkdown || await generateMarkdownDocument(coreResult.pages);
             const markdownData = { success: true, pages: coreResult.pages.length, markdown, fileName: coreResult.fileName };
-            jobs.set(jobId, { status: 'done', meta: { pages: coreResult.pages.length }, data: markdownData });
+            jobs.set(jobId, { status: 'done', meta: { pages: coreResult.pages.length }, data: markdownData, userId: user.id });
             await updateJob(jobId, { status: 'done', pages: coreResult.pages.length, geminiCalls: coreResult.source === 'pymupdf' ? 0 : coreResult.pages.length, timing: { total: Date.now() - wallStart }, cost: {}, resultData: markdownData });
           }
         } catch (err) {
           console.error(err);
-          jobs.set(jobId, { status: 'error', meta: { error: err.message } });
+          jobs.set(jobId, { status: 'error', meta: { error: err.message }, userId: user.id });
           await updateJob(jobId, { status: 'error', error: err.message });
         } finally {
           if (tmpDir) await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
@@ -1849,13 +1877,14 @@ async function startAsyncPipeline(jobId, file, fields, apiUser, model) {
   const finalFilter = filterStr.trim() || filterUsed || null;
 
   const tDir = await mkdtemp(join(tmpdir(), 'documind-'));
-  const tPath = join(tDir, file.filename);
+  const safeFn = safeUploadFilename(file.filename);
+  const tPath = join(tDir, safeFn);
   await writeFile(tPath, file.data);
   const ext = file.filename?.split('.').pop()?.toLowerCase() || '';
   const pageCount = ext === 'pdf' ? await quickPageCount(tPath) : 0;
   const estimate = estimateTime(ext, pageCount, !!schemaUsed);
 
-  jobs.set(jobId, { status: 'processing', eta: estimate.text });
+  jobs.set(jobId, { status: 'processing', eta: estimate.text, userId: apiUser.id });
   const wallStart = Date.now();
   await addJob(jobId, { fileName: file.filename, status: 'in-progress', pages: pageCount, schema: fields.schema || null, filter: finalFilter, templateName: tplName, apiKeyName: apiUser._apiKeyName || null, createdAt: wallStart }, apiUser.id);
   try { await updateJob(jobId, { storedFiles: await persistJobFiles(jobId, [file]) }); } catch (e) { console.error('persist failed', e); }
@@ -1869,7 +1898,7 @@ async function startAsyncPipeline(jobId, file, fields, apiUser, model) {
       if (!schemaUsed) {
         md = coreRes.pymupdfMarkdown || await generateMarkdownDocument(coreRes.pages);
         const markdownData = { success: true, pages: coreRes.pages.length, markdown: md, fileName: coreRes.fileName };
-        jobs.set(jobId, { status: 'done', meta: { pages: coreRes.pages.length }, data: markdownData });
+        jobs.set(jobId, { status: 'done', meta: { pages: coreRes.pages.length }, data: markdownData, userId: apiUser.id });
         await updateJob(jobId, { status: 'done', pages: coreRes.pages.length, geminiCalls: coreRes.source === 'pymupdf' ? 0 : coreRes.pages.length, timing: { total: Date.now() - wallStart }, resultData: markdownData });
       } else {
         const { data, reconciled, coverageAdjusted, coverageGap, usage: extUsage, time: extTime, coreResult: usedCore } = await runExtractionWithFallback(coreRes0, schemaUsed, model, { verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain }, jobId);
@@ -1898,12 +1927,12 @@ async function startAsyncPipeline(jobId, file, fields, apiUser, model) {
           ...(coverageGap ? { coverageGap } : {}),
         };
         const flags = { ...(reconciled ? { reconciledTotals: true } : {}), ...(coverageAdjusted ? { coverageAdjusted: true } : {}), ...(coverageGap ? { coverageGap } : {}) };
-        jobs.set(jobId, { status: 'done', meta, data: { success: true, data: filtered, markdown: md, fileName: coreRes.fileName, ...flags } });
+        jobs.set(jobId, { status: 'done', meta, data: { success: true, data: filtered, markdown: md, fileName: coreRes.fileName, ...flags }, userId: apiUser.id });
         await updateJob(jobId, { status: 'done', pages: coreRes.pages.length, timing: meta.timing, tokens: meta.tokens, cost: meta.cost, geminiCalls: coreRes.source === 'pymupdf' ? (extUsage.calls || 0) : coreRes.pages.length + (extUsage.calls || 1), resultData: { success: true, data: filtered, markdown: md, fileName: coreRes.fileName, ...flags } });
       }
     } catch (err) {
       console.error(err);
-      jobs.set(jobId, { status: 'error', meta: { error: err.message } });
+      jobs.set(jobId, { status: 'error', meta: { error: err.message }, userId: apiUser.id });
       await updateJob(jobId, { status: 'error', error: err.message });
     } finally {
       await rm(tDir, { recursive: true, force: true }).catch(() => {});
@@ -1918,11 +1947,12 @@ async function quickPageCount(filePath) {
     const { execFile } = await import('child_process');
     const { promisify } = await import('util');
     const execFileAsync = promisify(execFile);
+    const psPath = filePath.replace(/\\/g, '/').replace(/[()\\]/g, '\\$&');
     const { stdout } = await execFileAsync('gs', [
-      '-dNOPAUSE', '-dBATCH', '-q', '-dQUIET', '-dNODISPLAY',
-      '-c', `(${filePath}) (r) file runpdfbegin pdfpagecount = quit`,
+      '-dNOPAUSE', '-dBATCH', '-q', '-dQUIET', '-dNODISPLAY', '-dSAFER',
+      '-c', `(${psPath}) (r) file runpdfbegin pdfpagecount = quit`,
     ]);
-    return parseInt(stdout.trim(), 10);
+    return parseInt(stdout.trim(), 10) || 0;
   } catch { return 0; }
 }
 
@@ -2062,11 +2092,13 @@ function checkAuth(req, res) {
 }
 
   if ((url.pathname.startsWith('/api/result/') || url.pathname.startsWith('/api/data/')) && req.method === 'GET') {
-    if (!await authGuard(req, res)) return;
+    const apiUser = await authGuard(req, res);
+    if (!apiUser) return;
     const isData = url.pathname.includes('/api/data/');
     const jobId = url.pathname.split('/').pop();
     const job = jobs.get(jobId);
     if (!job) return sendJSON(res, 404, { error: 'Job not found' });
+    if (job.userId && job.userId !== apiUser.id && apiUser.role !== 1) return sendJSON(res, 403, { error: 'Forbidden' });
     sendJSON(res, 200, isData ? job.data : {
       status: job.status, eta: job.eta, meta: job.meta, data: job.data || null,
     });
@@ -2077,9 +2109,12 @@ function checkAuth(req, res) {
   }
 
   if (url.pathname.startsWith('/result/') && req.method === 'GET') {
+    const apiUser = await authGuard(req, res);
+    if (!apiUser) return;
     const jobId = url.pathname.split('/').pop();
     const job = jobs.get(jobId);
     if (!job) return sendJSON(res, 404, { error: 'Job not found' });
+    if (job.userId && job.userId !== apiUser.id && apiUser.role !== 1) return sendJSON(res, 403, { error: 'Forbidden' });
     sendJSON(res, 200, {
       status: job.status,
       eta: job.eta,
@@ -2093,9 +2128,12 @@ function checkAuth(req, res) {
   }
 
   if (url.pathname.startsWith('/data/') && req.method === 'GET') {
+    const apiUser = await authGuard(req, res);
+    if (!apiUser) return;
     const jobId = url.pathname.split('/').pop();
     const job = jobs.get(jobId);
     if (!job || job.status !== 'done') return sendJSON(res, 404, { error: 'Data not found' });
+    if (job.userId && job.userId !== apiUser.id && apiUser.role !== 1) return sendJSON(res, 403, { error: 'Forbidden' });
     sendJSON(res, 200, job.data);
     return;
   }
@@ -2110,9 +2148,7 @@ function checkAuth(req, res) {
       const boundary = getBoundary(req.headers['content-type']);
       if (!boundary) return sendJSON(res, 400, { error: 'No boundary' });
 
-      const buf = await new Promise((res, rej) => {
-        const c = []; req.on('data', d => c.push(d)); req.on('end', () => res(Buffer.concat(c))); req.on('error', rej);
-      });
+      const buf = await readBodyBuffer(req, MAX_BODY_SIZE);
       const raw = buf.toString('latin1');
       const parts = raw.split(`--${boundary}`).filter(p => p.includes('name='));
       let file = null;
@@ -2129,7 +2165,7 @@ function checkAuth(req, res) {
         const fn = header.match(/filename="([^"]*)"/)?.[1];
         if (fn !== undefined) {
           const dataStr = body.endsWith('\r\n') ? body.slice(0, -2) : body;
-          file = { data: Buffer.from(dataStr, 'latin1'), filename: fn || 'file' };
+          file = { data: Buffer.from(dataStr, 'latin1'), filename: safeUploadFilename(fn) };
         } else if (name) {
           fields[name] = body.replace(/\r?\n$/, '');
         }
@@ -2153,7 +2189,8 @@ function checkAuth(req, res) {
 
       const wallStart = Date.now();
       const tmpDir = await mkdtemp(join(tmpdir(), 'documind-'));
-      const tmpPath = join(tmpDir, file.filename);
+      const safeFn = safeUploadFilename(file.filename);
+      const tmpPath = join(tmpDir, safeFn);
       await writeFile(tmpPath, file.data);
       const coreResult0 = applyPageRange(await convertDocument({ filePath: tmpPath, model, concurrency: 6 }), fields.pages);
       let coreResult = coreResult0;
@@ -2219,7 +2256,7 @@ function checkAuth(req, res) {
     const boundary = getBoundary(req.headers['content-type']);
     if (!boundary) return sendJSON(res, 400, { error: 'No boundary' });
 
-    const buf = await new Promise((res, rej) => { const c = []; req.on('data', d => c.push(d)); req.on('end', () => res(Buffer.concat(c))); req.on('error', rej); });
+    const buf = await readBodyBuffer(req, MAX_BODY_SIZE);
     const raw = buf.toString('latin1');
     const parts = raw.split(`--${boundary}`).filter(p => p.includes('name='));
     let file = null;
@@ -2233,13 +2270,14 @@ function checkAuth(req, res) {
       const body = part.slice(hEnd + 4);
       if (fn !== undefined) {
         const dataStr = body.endsWith('\r\n') ? body.slice(0, -2) : body;
-        file = { data: Buffer.from(dataStr, 'latin1'), filename: fn || 'file' };
+        file = { data: Buffer.from(dataStr, 'latin1'), filename: safeUploadFilename(fn) };
       }
     }
     if (!file) return sendJSON(res, 400, { error: 'File required' });
 
     const tDir = await mkdtemp(join(tmpdir(), 'documind-classify-'));
-    const tPath = join(tDir, file.filename);
+    const safeFn = safeUploadFilename(file.filename);
+    const tPath = join(tDir, safeFn);
     await writeFile(tPath, file.data);
 
     try {
@@ -2326,9 +2364,7 @@ function checkAuth(req, res) {
 
   if (url.pathname === '/api/templates' && req.method === 'POST') {
     if (!await authGuard(req, res)) return;
-    const body = await new Promise((res, rej) => {
-      const c = []; req.on('data', d => c.push(d)); req.on('end', () => res(Buffer.concat(c).toString())); req.on('error', rej);
-    });
+    const body = await readBodyText(req, 5 * 1024 * 1024);
     try {
       const data = JSON.parse(body);
       const tpl = await addTemplate(data);
@@ -2346,9 +2382,7 @@ function checkAuth(req, res) {
       const ok = await deleteTemplate(id);
       return sendJSON(res, ok ? 200 : 404, ok ? { success: true } : { error: 'Not found' });
     }
-    const body = await new Promise((res, rej) => {
-      const c = []; req.on('data', d => c.push(d)); req.on('end', () => res(Buffer.concat(c).toString())); req.on('error', rej);
-    });
+    const body = await readBodyText(req, 5 * 1024 * 1024);
     try {
       const data = JSON.parse(body);
       const tpl = await updateTemplate(id, data);
@@ -2368,9 +2402,7 @@ function checkAuth(req, res) {
 
     let tmpDir;
     try {
-      const buf = await new Promise((res, rej) => {
-        const c = []; req.on('data', d => c.push(d)); req.on('end', () => res(Buffer.concat(c))); req.on('error', rej);
-      });
+      const buf = await readBodyBuffer(req, MAX_BODY_SIZE);
       const raw = buf.toString('latin1');
       const parts = raw.split(`--${boundary}`).filter(p => p.includes('name='));
       const files = [];
@@ -2387,7 +2419,7 @@ function checkAuth(req, res) {
         const fn = header.match(/filename="([^"]*)"/)?.[1];
         if (fn !== undefined) {
           const dataStr = body.endsWith('\r\n') ? body.slice(0, -2) : body;
-          files.push({ data: Buffer.from(dataStr, 'latin1'), filename: fn || 'file' });
+          files.push({ data: Buffer.from(dataStr, 'latin1'), filename: safeUploadFilename(fn) });
         } else if (name) {
           fields[name] = body.replace(/\r?\n$/, '');
         }
@@ -2412,7 +2444,7 @@ function checkAuth(req, res) {
       tmpDir = await mkdtemp(join(tmpdir(), 'documind-schema-'));
       const docFiles = [];
       for (const f of files) {
-        const uploadPath = join(tmpDir, f.filename);
+        const uploadPath = join(tmpDir, safeUploadFilename(f.filename));
         await writeFile(uploadPath, f.data);
         docFiles.push({ name: f.filename, path: uploadPath });
       }
@@ -2421,7 +2453,7 @@ function checkAuth(req, res) {
       const estimatedMs = docFiles.length * 25000 + 15000;
       const eta = estimatedMs < 60000 ? `~${Math.round(estimatedMs / 1000)}s` : `~${Math.round(estimatedMs / 60000)} min`;
 
-      schemaJobs.set(jobId, { status: 'processing', eta, fileCount: docFiles.length });
+      schemaJobs.set(jobId, { status: 'processing', eta, fileCount: docFiles.length, userId: apiUser.id });
       await addJob(jobId, { fileName: files[0].filename, status: 'in-progress', schema: null, filter: null, templateName: 'schema-generation', apiKeyName: apiUser._apiKeyName || null, createdAt: Date.now() }, apiUser.id);
       try { await updateJob(jobId, { storedFiles: await persistJobFiles(jobId, files) }); } catch (e) { console.error('persist failed', e); }
 
@@ -2434,11 +2466,11 @@ function checkAuth(req, res) {
           const INPUT_PRICE = 0.15 / 1000000;
           const OUTPUT_PRICE = 0.60 / 1000000;
           const cost = { total: +(totalInput * INPUT_PRICE + totalOutput * OUTPUT_PRICE).toFixed(6), inputPricePerM: 0.15, outputPricePerM: 0.60, currency: 'USD' };
-          schemaJobs.set(jobId, { status: 'done', ...result, cost });
+          schemaJobs.set(jobId, { status: 'done', ...result, cost, userId: apiUser.id });
           await updateJob(jobId, { status: 'done', pages: result.files.reduce((s, f) => s + (f.pages || 0), 0), timing: { total: result.timing }, tokens: usage, cost, geminiCalls: result.files.length * 2, schema: result.schema, resultData: { success: true, schema: result.schema }, fileName: files[0].filename });
         } catch (jobErr) {
           console.error(jobErr);
-          schemaJobs.set(jobId, { status: 'error', meta: { error: jobErr.message } });
+          schemaJobs.set(jobId, { status: 'error', meta: { error: jobErr.message }, userId: apiUser.id });
           await updateJob(jobId, { status: 'error', error: jobErr.message });
         } finally {
           if (tmpDir) await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
@@ -2459,6 +2491,7 @@ function checkAuth(req, res) {
     const jobId = url.pathname.split('/').pop();
     const job = schemaJobs.get(jobId);
     if (!job) return sendJSON(res, 404, { error: 'Job not found' });
+    if (job.userId && job.userId !== apiUser.id && apiUser.role !== 1) return sendJSON(res, 403, { error: 'Forbidden' });
     const { status, eta, schema, files, usage, timing, meta } = job;
     sendJSON(res, 200, { status, eta, schema, files, usage, timing, meta });
     if (status === 'done' || status === 'error') {

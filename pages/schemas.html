@@ -92,7 +92,7 @@ function addFiles(files) {
 function renderFiles() {
   document.getElementById('fileList').innerHTML = selectedFiles.map((f, i) => `
     <div class="file-chip">
-      <span class="fname">${f.name}</span>
+      <span class="fname">${esc(f.name)}</span>
       <span style="display:flex;align-items:center;gap:8px">
         <span class="fsize">${(f.size/1024).toFixed(1)} KB</span>
         <span class="fremove" onclick="removeFile(${i})">×</span>

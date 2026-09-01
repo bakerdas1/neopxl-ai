@@ -87,18 +87,52 @@ export const formatMarkdown = (text: string) => {
   return formattedMarkdown;
 };
 
+export const isPrivateOrReservedHost = (hostname: string): boolean => {
+  const h = hostname.toLowerCase().trim();
+  if (
+    h === "localhost" ||
+    h === "127.0.0.1" ||
+    h === "::1" ||
+    h === "0.0.0.0" ||
+    h === "169.254.169.254" ||
+    h.endsWith(".localhost") ||
+    h.endsWith(".local") ||
+    h.endsWith(".internal")
+  ) {
+    return true;
+  }
+  const ipv4Match = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4Match) {
+    const a = Number(ipv4Match[1]);
+    const b = Number(ipv4Match[2]);
+    if (a === 10) return true;
+    if (a === 127) return true;
+    if (a === 0) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+  }
+  return false;
+};
+
 export const isString = (value: string | null): value is string => {
   return value !== null;
 };
 
 export const isValidUrl = (string: string): boolean => {
-  let url;
+  let url: URL;
   try {
     url = new URL(string);
   } catch (_) {
     return false;
   }
-  return url.protocol === "http:" || url.protocol === "https:";
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return false;
+  }
+  if (isPrivateOrReservedHost(url.hostname)) {
+    return false;
+  }
+  return true;
 };
 
 // Save file to local tmp directory
@@ -109,19 +143,27 @@ export const downloadFile = async ({
   filePath: string;
   tempDir: string;
 }): Promise<{ extension: string; localPath: string }> => {
-  // Shorten the file name by removing URL parameters
-  const baseFileName = path.basename(filePath.split("?")[0]);
+  const isUrl = isValidUrl(filePath);
+  let baseFileName = "";
+  if (isUrl) {
+    baseFileName = path.basename(filePath.split("?")[0]) || "downloaded_file";
+  } else {
+    baseFileName = path.basename(filePath) || "local_file";
+  }
+  baseFileName = baseFileName.replace(/[^\w.\- ]+/g, "_");
   const localPath = path.join(tempDir, baseFileName);
   let mimetype;
 
   // Check if filePath is a URL
-  if (isValidUrl(filePath)) {
+  if (isUrl) {
     const writer = fs.createWriteStream(localPath);
 
     const response = await axios({
       url: filePath,
       method: "GET",
       responseType: "stream",
+      timeout: 30000,
+      maxContentLength: 100 * 1024 * 1024,
     });
 
     if (response.status !== 200) {
@@ -130,8 +172,12 @@ export const downloadFile = async ({
     mimetype = response.headers?.["content-type"];
     await pipeline(response.data, writer);
   } else {
-    // If filePath is a local file, copy it to the temp directory
-    await fs.copyFile(filePath, localPath);
+    const resolvedSource = path.resolve(filePath);
+    const stat = await fs.stat(resolvedSource);
+    if (!stat.isFile()) {
+      throw new Error("Invalid local file path: must be an existing file");
+    }
+    await fs.copyFile(resolvedSource, localPath);
   }
 
   if (!mimetype) {
@@ -228,10 +274,18 @@ const correctImageOrientation = async (buffer: Buffer): Promise<Buffer> => {
 };
 
 const getPdfPageCount = async (localPath: string): Promise<number> => {
-  const { stdout } = await execAsync(
-    `gs -dNOPAUSE -dBATCH -q -dQUIET -dNODISPLAY -c "(${localPath}) (r) file runpdfbegin pdfpagecount = quit"`
-  );
-  return parseInt(stdout.trim(), 10);
+  const psPath = localPath.replace(/\\/g, "/").replace(/[()\\]/g, "\\$&");
+  const { stdout } = await execFileAsync("gs", [
+    "-dNOPAUSE",
+    "-dBATCH",
+    "-q",
+    "-dQUIET",
+    "-dNODISPLAY",
+    "-dSAFER",
+    "-c",
+    `(${psPath}) (r) file runpdfbegin pdfpagecount = quit`,
+  ]);
+  return parseInt(stdout.trim(), 10) || 0;
 };
 
 const gsConvertPage = async (

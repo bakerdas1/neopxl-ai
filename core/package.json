@@ -12,16 +12,12 @@
   },
   "dependencies": {
     "axios": "^1.7.2",
-    "child_process": "^1.0.2",
     "fs-extra": "^11.2.0",
     "libreoffice-convert": "^1.6.0",
     "mime-types": "^2.1.35",
-    "os": "^0.1.2",
     "p-limit": "^3.1.0",
-    "path": "^0.12.7",
     "sharp": "^0.33.5",
     "tesseract.js": "^5.1.1",
-    "util": "^0.12.5",
     "zod": "^3.23.8"
   },
   "devDependencies": {

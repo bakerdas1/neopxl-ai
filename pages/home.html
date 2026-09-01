@@ -88,7 +88,7 @@ function renderDonut(data) {
     const len = (d.count/total)*circ;
     const off = -(acc/total)*circ;
     acc += d.count;
-    return '<circle data-name="'+d.name+'" cx="'+cx+'" cy="'+cy+'" r="'+radius+'" fill="none" stroke="'+palette[i%palette.length]+'" stroke-width="26" stroke-dasharray="'+len.toFixed(3)+' '+(circ-len).toFixed(3)+'" stroke-dashoffset="'+off.toFixed(3)+'" transform="rotate(-90 '+cx+' '+cy+')"/>';
+    return '<circle data-name="'+esc(d.name)+'" cx="'+cx+'" cy="'+cy+'" r="'+radius+'" fill="none" stroke="'+palette[i%palette.length]+'" stroke-width="26" stroke-dasharray="'+len.toFixed(3)+' '+(circ-len).toFixed(3)+'" stroke-dashoffset="'+off.toFixed(3)+'" transform="rotate(-90 '+cx+' '+cy+')"/>';
   }).join('');
   const donutEl = document.getElementById('tplDonut');
   donutEl.dataset.theme = themeKey;
@@ -97,8 +97,8 @@ function renderDonut(data) {
     '<text x="'+cx+'" y="'+cy+'" text-anchor="middle" font-size="34" font-weight="700" fill="var(--ink)">'+total+'</text>'+
     '<text x="'+cx+'" y="'+cy+22+'" text-anchor="middle" font-size="11" fill="var(--steel)">extractions</text></svg>';
   document.getElementById('tplLegend').innerHTML = sorted.map((d,i) =>
-    '<div class="donut-row" data-name="'+d.name+'"><span class="donut-swatch" style="background:'+palette[i%palette.length]+'"></span>'+
-    '<span class="donut-name">'+d.name+'</span>'+
+    '<div class="donut-row" data-name="'+esc(d.name)+'"><span class="donut-swatch" style="background:'+palette[i%palette.length]+'"></span>'+
+    '<span class="donut-name">'+esc(d.name)+'</span>'+
     '<span class="donut-val">'+d.count+' · '+Math.round(d.count/total*100)+'%</span></div>').join('');
 }
 
@@ -118,7 +118,7 @@ function renderCostBars(data) {
     return;
   }
   document.getElementById('costBars').innerHTML = sorted.map(t =>
-    '<div class="chart-row" data-name="'+t.name+'"><div class="chart-label">'+t.name+'</div>'+
+    '<div class="chart-row" data-name="'+esc(t.name)+'"><div class="chart-label">'+esc(t.name)+'</div>'+
     '<div class="chart-bar-wrap"><div class="chart-bar cost-bar" style="width:'+Math.max(t.cost/max*100,0.5)+'%"></div></div>'+
     '<div class="chart-count">$'+t.cost.toFixed(4)+'</div></div>').join('');
   document.getElementById('costEmpty').style.display = 'none';

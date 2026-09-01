@@ -186,6 +186,17 @@ body { font-family: var(--font-family); background: var(--surface); color: var(-
 .page-toggle-btn.active { background: var(--brand-green); color: var(--on-primary); }
 </style>
 <script>
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+window.esc = esc;
+
 const token = localStorage.getItem('neopxl_token');
 if (!token) { window.location.href = '/login'; }
 const apiFetch = async (url, opts = {}) => {

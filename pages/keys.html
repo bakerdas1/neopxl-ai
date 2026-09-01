@@ -28,11 +28,11 @@ async function loadKeys() {
   list.innerHTML = keys.map(k => `
     <div class="task-card" style="padding:var(--spacing-md) var(--spacing-lg)">
       <div style="flex:1;min-width:0">
-        <strong>${k.name}</strong>
-        <div style="font-family:monospace;font-size:12px;color:var(--steel);margin-top:4px">${k.key.slice(0,8)}...${k.key.slice(-4)}</div>
+        <strong>${esc(k.name)}</strong>
+        <div style="font-family:monospace;font-size:12px;color:var(--steel);margin-top:4px">${esc(k.key.slice(0,8))}...${esc(k.key.slice(-4))}</div>
         <div style="font-size:11px;color:var(--stone);margin-top:2px">Created ${k.created_at?new Date(Number(k.created_at)).toLocaleDateString():'—'}${k.last_used?' · Last used '+new Date(Number(k.last_used)).toLocaleDateString():''}</div>
       </div>
-      <button class="btn btn-danger btn-sm" onclick="revokeKey('${k.id}')">Revoke</button>
+      <button class="btn btn-danger btn-sm" onclick="revokeKey('${esc(k.id)}')">Revoke</button>
     </div>`).join('');
 }
 

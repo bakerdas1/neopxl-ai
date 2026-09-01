@@ -98,14 +98,16 @@ INSERT INTO stats (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 const DB_NAME = new URL(DATABASE_URL).pathname.replace(/^\//, '') || 'documind';
 
 export async function ensureDatabase() {
+  const safeDbName = DB_NAME.replace(/[^a-zA-Z0-9_]/g, '');
+  if (!safeDbName) return;
   const u = new URL(DATABASE_URL);
   u.pathname = '/postgres';
   const boot = new pg.Client({ connectionString: u.toString() });
   try {
     await boot.connect();
-    const { rowCount } = await boot.query('SELECT 1 FROM pg_database WHERE datname = $1', [DB_NAME]);
+    const { rowCount } = await boot.query('SELECT 1 FROM pg_database WHERE datname = $1', [safeDbName]);
     if (!rowCount) {
-      await boot.query(`CREATE DATABASE "${DB_NAME}"`);
+      await boot.query(`CREATE DATABASE "${safeDbName}"`);
     }
   } catch (err) {
     console.error('ensureDatabase failed:', err.message);

@@ -106,6 +106,34 @@ const formatMarkdown = (text) => {
     return formattedMarkdown;
 };
 exports.formatMarkdown = formatMarkdown;
+const isPrivateOrReservedHost = (hostname) => {
+    const h = (hostname || "").toLowerCase().trim();
+    if (
+        h === "localhost" ||
+        h === "127.0.0.1" ||
+        h === "::1" ||
+        h === "0.0.0.0" ||
+        h === "169.254.169.254" ||
+        h.endsWith(".localhost") ||
+        h.endsWith(".local") ||
+        h.endsWith(".internal")
+    ) {
+        return true;
+    }
+    const ipv4Match = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (ipv4Match) {
+        const a = Number(ipv4Match[1]);
+        const b = Number(ipv4Match[2]);
+        if (a === 10) return true;
+        if (a === 127) return true;
+        if (a === 0) return true;
+        if (a === 169 && b === 254) return true;
+        if (a === 172 && b >= 16 && b <= 31) return true;
+        if (a === 192 && b === 168) return true;
+    }
+    return false;
+};
+exports.isPrivateOrReservedHost = isPrivateOrReservedHost;
 const isString = (value) => {
     return value !== null;
 };
@@ -118,22 +146,37 @@ const isValidUrl = (string) => {
     catch (_) {
         return false;
     }
-    return url.protocol === "http:" || url.protocol === "https:";
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+        return false;
+    }
+    if (isPrivateOrReservedHost(url.hostname)) {
+        return false;
+    }
+    return true;
 };
 exports.isValidUrl = isValidUrl;
 // Save file to local tmp directory
 const downloadFile = async ({ filePath, tempDir, }) => {
-    // Shorten the file name by removing URL parameters
-    const baseFileName = path_1.default.basename(filePath.split("?")[0]);
+    const isUrl = (0, exports.isValidUrl)(filePath);
+    let baseFileName = "";
+    if (isUrl) {
+        baseFileName = path_1.default.basename(filePath.split("?")[0]) || "downloaded_file";
+    }
+    else {
+        baseFileName = path_1.default.basename(filePath) || "local_file";
+    }
+    baseFileName = baseFileName.replace(/[^\w.\- ]+/g, "_");
     const localPath = path_1.default.join(tempDir, baseFileName);
     let mimetype;
     // Check if filePath is a URL
-    if ((0, exports.isValidUrl)(filePath)) {
+    if (isUrl) {
         const writer = fs_extra_1.default.createWriteStream(localPath);
         const response = await (0, axios_1.default)({
             url: filePath,
             method: "GET",
             responseType: "stream",
+            timeout: 30000,
+            maxContentLength: 100 * 1024 * 1024,
         });
         if (response.status !== 200) {
             throw new Error(`HTTP error! Status: ${response.status}`);
@@ -142,8 +185,12 @@ const downloadFile = async ({ filePath, tempDir, }) => {
         await (0, promises_1.pipeline)(response.data, writer);
     }
     else {
-        // If filePath is a local file, copy it to the temp directory
-        await fs_extra_1.default.copyFile(filePath, localPath);
+        const resolvedSource = path_1.default.resolve(filePath);
+        const stat = await fs_extra_1.default.stat(resolvedSource);
+        if (!stat.isFile()) {
+            throw new Error("Invalid local file path: must be an existing file");
+        }
+        await fs_extra_1.default.copyFile(resolvedSource, localPath);
     }
     if (!mimetype) {
         mimetype = mime_types_1.default.lookup(localPath);
@@ -219,8 +266,18 @@ const correctImageOrientation = async (buffer) => {
     return buffer;
 };
 const getPdfPageCount = async (localPath) => {
-    const { stdout } = await execAsync(`gs -dNOPAUSE -dBATCH -q -dQUIET -dNODISPLAY -c "(${localPath}) (r) file runpdfbegin pdfpagecount = quit"`);
-    return parseInt(stdout.trim(), 10);
+    const psPath = localPath.replace(/\\/g, "/").replace(/[()\\]/g, "\\$&");
+    const { stdout } = await execFileAsync("gs", [
+        "-dNOPAUSE",
+        "-dBATCH",
+        "-q",
+        "-dQUIET",
+        "-dNODISPLAY",
+        "-dSAFER",
+        "-c",
+        `(${psPath}) (r) file runpdfbegin pdfpagecount = quit`,
+    ]);
+    return parseInt(stdout.trim(), 10) || 0;
 };
 const gsConvertPage = async (localPath, page, outputPath, density) => {
     await execFileAsync("gs", [

@@ -94,6 +94,10 @@ function csvVal(v) {
   if (v === null || v === undefined) return '';
   let s = typeof v === 'string' ? v : String(v);
   if (s === 'null' || s === 'undefined') return '';
+  // Sanitize formula triggers to prevent CSV / Spreadsheet injection
+  if (/^[\s]*[=+\-@\t\r]/.test(s)) {
+    s = "'" + s;
+  }
   if (/[",\r\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
   return s;
 }

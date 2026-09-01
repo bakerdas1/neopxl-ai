@@ -390,26 +390,42 @@ export async function deleteTemplate(id) {
   return r.rowCount > 0;
 }
 
+function hashApiKey(key) {
+  return crypto.createHash('sha256').update(String(key)).digest('hex');
+}
+
 export async function createApiKey(userId, name) {
-  const key = 'neopxl_' + crypto.randomBytes(24).toString('hex');
+  const rawKey = 'neopxl_' + crypto.randomBytes(24).toString('hex');
+  const keyHash = hashApiKey(rawKey);
   const id = crypto.randomBytes(8).toString('hex');
   const r = await pool.query(
     'INSERT INTO api_keys (id, user_id, key, name, created_at, last_used) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
-    [id, userId, key, name || 'API Key', Date.now(), null]
+    [id, userId, keyHash, name || 'API Key', Date.now(), null]
   );
-  return r.rows[0];
+  return { ...r.rows[0], key: rawKey, rawKey };
 }
 
 export async function getUserApiKeys(userId) {
-  const r = await pool.query('SELECT * FROM api_keys WHERE user_id = $1', [userId]);
-  return r.rows;
+  const r = await pool.query('SELECT id, user_id, key, name, created_at, last_used FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
+  return r.rows.map(k => ({
+    ...k,
+    key: 'neopxl_••••••••••••••••',
+  }));
 }
 
 export async function getApiKeyUser(key) {
-  const r = await pool.query('SELECT * FROM api_keys WHERE key = $1', [key]);
+  if (!key || typeof key !== 'string') return null;
+  const keyHash = hashApiKey(key);
+  // Support both SHA-256 hash and legacy unhashed keys
+  const r = await pool.query('SELECT * FROM api_keys WHERE key = $1 OR key = $2', [keyHash, key]);
   const k = r.rows[0];
   if (!k) return null;
-  await pool.query('UPDATE api_keys SET last_used = $1 WHERE id = $2', [Date.now(), k.id]);
+  // If stored as legacy raw key, automatically upgrade to SHA-256 hash
+  if (k.key === key) {
+    await pool.query('UPDATE api_keys SET key = $1, last_used = $2 WHERE id = $3', [keyHash, Date.now(), k.id]);
+  } else {
+    await pool.query('UPDATE api_keys SET last_used = $1 WHERE id = $2', [Date.now(), k.id]);
+  }
   const u = (await pool.query('SELECT * FROM users WHERE id = $1', [k.user_id])).rows[0];
   if (!u) return null;
   const company = (await pool.query('SELECT * FROM companies WHERE id = $1', [u.company_id])).rows[0];
