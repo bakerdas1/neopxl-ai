@@ -208,6 +208,38 @@ function mergeReconciled(corrected, current, arrays) {
   return merged;
 }
 
+// For "mixed charges" documents (an invoice that lists several charge types —
+// landing, aerobridge, screening, etc. — but where the schema only extracts one
+// of them), the invoice's own TOTAL field is the sum of ALL charge types, not the
+// sum of the extracted line items. In that case overwrite each total field with
+// the sum of the relevant extracted arrays' line items.
+export function applyTotalFromItems(data, schemaUsed) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
+  const schema = Array.isArray(schemaUsed) ? schemaUsed : [];
+  const totalPaths = collectTotalFields(schema);
+  const arrays = collectArrayFields(schema);
+  if (!totalPaths.length || !arrays.length) return data;
+
+  const arraySums = arrays
+    .map(a => {
+      const spec = pickLineAmountField(a.children);
+      if (!spec) return null;
+      const items = getAt(data, a.name) || [];
+      return { name: a.name, spec, sum: sumFor(items, spec), count: Array.isArray(items) ? items.length : 0 };
+    })
+    .filter(s => s && s.count > 0);
+
+  if (!arraySums.length) return data;
+
+  for (const t of totalPaths) {
+    const arrs = relevantArrays(t, arraySums);
+    if (!arrs.length) continue;
+    const combined = arrs.reduce((a, s) => a + s.sum, 0);
+    setAt(data, t, combined);
+  }
+  return data;
+}
+
 const RECONCILE_PROMPT = `You are a meticulous financial auditor reviewing an AI data extraction.
 
 A document was previously processed and structured data was extracted against a schema. The extracted TOTAL AMOUNT field(s) do not reconcile with the sum of the extracted LINE ITEM amounts. Re-examine the ORIGINAL DOCUMENT, correct the extraction, and return the complete corrected JSON.

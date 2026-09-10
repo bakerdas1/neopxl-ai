@@ -104,6 +104,7 @@
           <input type="text" id="pageRange" placeholder="e.g. 1-9" style="width:100%">
         </div>
       </div>
+      <div class="form-group"><label><input type="checkbox" id="mixedChargesInput" style="width:auto;display:inline-block;margin-right:6px">Mixed charges (invoice has several charge types — total will be the sum of the extracted line items, not the invoice grand total)</label></div>
       <div style="display:flex;gap:8px">
         <button type="submit" class="btn btn-primary" id="extractBtn">Extract</button>
       </div>
@@ -580,13 +581,14 @@ function setPageMode(mode){
 }
 function openExtractionModal(){setPageMode('all');document.getElementById('pageRange').value='';document.getElementById('extractModalOverlay').style.display='flex'}
 function closeExtractModal(){document.getElementById('extractModalOverlay').style.display='none'}
-function resetExtractForm(){document.getElementById('fileInput').value='';document.getElementById('templateSelect').value='';setPageMode('all');document.getElementById('pageRange').value='';document.getElementById('extractStatus').style.display='none';document.getElementById('extractResult').style.display='none';document.getElementById('extractBtn').disabled=false}
+function resetExtractForm(){document.getElementById('fileInput').value='';document.getElementById('templateSelect').value='';document.getElementById('mixedChargesInput').checked=false;setPageMode('all');document.getElementById('pageRange').value='';document.getElementById('extractStatus').style.display='none';document.getElementById('extractResult').style.display='none';document.getElementById('extractBtn').disabled=false}
 document.getElementById('extractModalOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeExtractModal()});
 
 async function startExtraction(){
   const btn=document.getElementById('extractBtn');const status=document.getElementById('extractStatus');const result=document.getElementById('extractResult');
   btn.disabled=true;status.style.display='block';status.innerHTML='<p>Submitting...</p>';result.style.display='none';
   const fd=new FormData();fd.append('file',document.getElementById('fileInput').files[0]);fd.append('template',document.getElementById('templateSelect').value);
+  if(document.getElementById('mixedChargesInput').checked)fd.append('mixed_charges','1');
   const rangeMode=document.getElementById('pageToggleRange').classList.contains('active');
   if(rangeMode){const pr=document.getElementById('pageRange').value.trim();if(pr)fd.append('pages',pr)}
   try{

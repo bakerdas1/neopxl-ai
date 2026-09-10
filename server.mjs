@@ -17,7 +17,7 @@ import { convertToZodSchema } from './extractor/src/utils/convertToZodSchema.js'
 import { getExtractor } from './extractor/src/extractors/index.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { BASE_EXTRACTION_PROMPT } from './extractor/src/prompts.js';
-import { verifyTotals, verifyCoverage, verifyCoveragePerPage, countRows } from './verifyTotals.mjs';
+import { verifyTotals, verifyCoverage, verifyCoveragePerPage, countRows, applyTotalFromItems } from './verifyTotals.mjs';
 import { templates } from './extractor/src/services/templates.js';
 import { generateSchema } from './schema-service/generateSchema.js';
 import { initDb, closeDb } from './db.mjs';
@@ -595,7 +595,9 @@ function extractRecords(markdown, chargeAliases, vocab, dateFormat) {
     if (!t.startsWith('|') || !t.endsWith('|')) continue;
     if (stopCharges) continue;
     // Summary / grand-total section marker — stop associating charges past it.
-    if (/(riepilogo|grand[- ]?total|\btotal\b)/i.test(t) && (lastArrival || lastDeparture)) {
+    // Exclude "…Total Charges…" which is a recurring column HEADER on a table
+    // that continues onto the next page (and therefore must NOT stop extraction).
+    if (/(riepilogo|grand[- ]?total|sub[- ]?total|\btotal\b(?!\s*charges))/i.test(t) && (lastArrival || lastDeparture)) {
       stopCharges = true;
       continue;
     }
@@ -828,6 +830,10 @@ async function runExtraction(coreResult, schemaUsed, model, opts = {}) {
     out = reconcileMovementRows(mdStructure, out, arraySchema, opts.dateInputFormat, opts.dateFormat, movementPattern, chargeAliases, ai.domains?.[opts.domain]?.fieldVocabulary);
     console.info(`[finish] post reconcileMovementRows: ${arrLog(out)}`);
     out = normalizeChargeTypes(out, chargeAliases);
+    if (opts.mixedCharges) {
+      out = applyTotalFromItems(out, schemaUsed);
+      console.info('[finish] mixed charges: total field(s) set from extracted line items.');
+    }
     return { data: out, reconciled, coverageAdjusted, coverageGap, usage: { inputTokens: stats.inputTokens, outputTokens: stats.outputTokens, calls: stats.calls || 0 }, time: stats.time };
   };
 
@@ -1747,13 +1753,13 @@ const server = createServer(async (req, res) => {
           const coreResult0 = applyPageRange(await convertDocument({ filePath: tmpPath, model, concurrency: 6, jobId }), fields.pages);
           jobs.set(jobId, { ...jobs.get(jobId), totalPages: coreResult0.pages.length, userId: user.id });
 
-          const { schemaUsed, filterUsed, verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain } = await parseSchema(fields);
+          const { schemaUsed, filterUsed, verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain, mixedCharges } = await parseSchema(fields);
 
           let coreResult = coreResult0;
           let markdown = null;
 
           if (schemaUsed) {
-            const { data, reconciled, coverageAdjusted, coverageGap, usage: extractUsage, time: extractionTime, coreResult: usedCore } = await runExtractionWithFallback(coreResult0, schemaUsed, model, { verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain }, jobId);
+            const { data, reconciled, coverageAdjusted, coverageGap, usage: extractUsage, time: extractionTime, coreResult: usedCore } = await runExtractionWithFallback(coreResult0, schemaUsed, model, { verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain, mixedCharges }, jobId);
             coreResult = usedCore || coreResult0;
             markdown = coreResult.pymupdfMarkdown || await generateMarkdownDocument(coreResult.pages);
 
@@ -1821,6 +1827,7 @@ async function parseSchema(fields) {
   let perPage = fields.per_page === '1' || fields.per_page === 'true';
   let dateFormat = fields.date_format ? String(fields.date_format).trim() : null;
   let dateInputFormat = fields.date_input_format ? String(fields.date_input_format).trim() : null;
+  let mixedCharges = fields.mixed_charges === '1' || fields.mixed_charges === 'true';
   let domain = null;
 
   if (fields.schema && fields.schema.trim()) {
@@ -1861,11 +1868,11 @@ async function parseSchema(fields) {
       } catch {}
     }
   }
-  return { schemaUsed, filterUsed, verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain };
+  return { schemaUsed, filterUsed, verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain, mixedCharges };
 }
 
 async function startAsyncPipeline(jobId, file, fields, apiUser, model) {
-  const { schemaUsed, filterUsed, verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain } = await parseSchema(fields);
+  const { schemaUsed, filterUsed, verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain, mixedCharges } = await parseSchema(fields);
   const tplId = (fields.template_id || fields.template || '').trim();
   let tplName = tplId || null;
   if (tplId) {
@@ -1901,7 +1908,7 @@ async function startAsyncPipeline(jobId, file, fields, apiUser, model) {
         jobs.set(jobId, { status: 'done', meta: { pages: coreRes.pages.length }, data: markdownData, userId: apiUser.id });
         await updateJob(jobId, { status: 'done', pages: coreRes.pages.length, geminiCalls: coreRes.source === 'pymupdf' ? 0 : coreRes.pages.length, timing: { total: Date.now() - wallStart }, resultData: markdownData });
       } else {
-        const { data, reconciled, coverageAdjusted, coverageGap, usage: extUsage, time: extTime, coreResult: usedCore } = await runExtractionWithFallback(coreRes0, schemaUsed, model, { verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain }, jobId);
+        const { data, reconciled, coverageAdjusted, coverageGap, usage: extUsage, time: extTime, coreResult: usedCore } = await runExtractionWithFallback(coreRes0, schemaUsed, model, { verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain, mixedCharges }, jobId);
         coreRes = usedCore || coreRes0;
         md = coreRes.pymupdfMarkdown || await generateMarkdownDocument(coreRes.pages);
 
@@ -2196,11 +2203,11 @@ function checkAuth(req, res) {
       let coreResult = coreResult0;
       let markdown = null;
 
-      const { schemaUsed, filterUsed, verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain } = await parseSchema(fields);
+      const { schemaUsed, filterUsed, verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain, mixedCharges } = await parseSchema(fields);
 
       let output;
       if (schemaUsed) {
-        const { data, reconciled, coverageAdjusted, coverageGap, usage: extractUsage, time: extractionTime, coreResult: usedCore } = await runExtractionWithFallback(coreResult0, schemaUsed, model, { verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain });
+        const { data, reconciled, coverageAdjusted, coverageGap, usage: extractUsage, time: extractionTime, coreResult: usedCore } = await runExtractionWithFallback(coreResult0, schemaUsed, model, { verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain, mixedCharges });
         coreResult = usedCore || coreResult0;
         markdown = coreResult.pymupdfMarkdown || await generateMarkdownDocument(coreResult.pages);
 
