@@ -590,14 +590,19 @@ function extractRecords(markdown, chargeAliases, vocab, dateFormat) {
     }
     return true;
   };
-  for (const line of lines) {
+  // A markdown table header is the row immediately followed by a separator row
+  // like `|---|---|---|` (only pipes, dashes, colons, spaces). A repeated header
+  // on a continued table must NOT be treated as a summary/total marker.
+  const isSeparatorRow = s => /^\s*\|[\s:|-]+\|\s*$/.test(s);
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
     const t = line.trim();
     if (!t.startsWith('|') || !t.endsWith('|')) continue;
     if (stopCharges) continue;
+    const isHeader = li + 1 < lines.length && isSeparatorRow(lines[li + 1]);
     // Summary / grand-total section marker — stop associating charges past it.
-    // Exclude "…Total Charges…" which is a recurring column HEADER on a table
-    // that continues onto the next page (and therefore must NOT stop extraction).
-    if (/(riepilogo|grand[- ]?total|sub[- ]?total|\btotal\b(?!\s*charges))/i.test(t) && (lastArrival || lastDeparture)) {
+    // Skip when the line is a table header (a column named "Total …" must not stop).
+    if (!isHeader && /(riepilogo|grand[- ]?total|\btotal\b)/i.test(t) && (lastArrival || lastDeparture)) {
       stopCharges = true;
       continue;
     }
