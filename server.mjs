@@ -670,7 +670,14 @@ function reconcileMovementRows(markdown, data, arraySchema, dateInputFormat, dat
   };
   for (const arr of arrays) {
     if (!(arr.name in data) || !Array.isArray(data[arr.name])) continue;
-    const airport = airportFrom(data[arr.name]);
+    const existing = data[arr.name];
+    // The regex extractor is a deterministic fallback, NOT an authoritative
+    // source. The LLM reads the full document and is far better at arbitrary
+    // layouts, so never let the regex REDUCE the number of rows the LLM already
+    // extracted — only adopt the regex result when it recovered MORE rows
+    // (i.e. the LLM missed some).
+    if (Array.isArray(existing) && existing.length >= records.length) continue;
+    const airport = airportFrom(existing);
     const itemFields = arr.children || [];
     data[arr.name] = records.map(r => {
       const row = {};
@@ -826,12 +833,6 @@ async function runExtraction(coreResult, schemaUsed, model, opts = {}) {
       reconciled = totalCheck.reconciled;
     }
     console.info(`[finish] post verifyTotals (reconciled=${reconciled}): ${arrLog(out)}`);
-    if (opts.verifyCoverage && !skipGlobal) {
-      const coverageCheck = await verifyCoverage(markdown, out, schemaUsed, model, stats, fullZod, extractPage);
-      out = coverageCheck.data;
-      coverageAdjusted = coverageCheck.adjusted;
-      coverageGap = coverageCheck.gap;
-    }
     if (datePaths.length) out = applyDateFormats(out, datePaths, opts.dateFormat);
     const mdStructure = coreResult.pymupdfMarkdown || markdown;
     if (opts.dateInputFormat && datePaths.length) out = fixDatesFromSource(mdStructure, out, datePaths, opts.dateInputFormat, opts.dateFormat);
@@ -840,6 +841,16 @@ async function runExtraction(coreResult, schemaUsed, model, opts = {}) {
     out = reconcileMovementRows(mdStructure, out, arraySchema, opts.dateInputFormat, opts.dateFormat, movementPattern, chargeAliases, ai.domains?.[opts.domain]?.fieldVocabulary);
     console.info(`[finish] post reconcileMovementRows: ${arrLog(out)}`);
     out = normalizeChargeTypes(out, chargeAliases);
+    // FINAL completeness check: count the records actually present in the
+    // document and, if the final arrays are short, re-extract them. This runs
+    // for every schema with arrays (unless the per-page path already handled
+    // coverage) so under-extraction is caught regardless of document layout.
+    if (!skipGlobal && arraySchema.length > 0) {
+      const coverageCheck = await verifyCoverage(markdown, out, schemaUsed, model, stats, fullZod, extractPage);
+      out = coverageCheck.data;
+      coverageAdjusted = coverageAdjusted || coverageCheck.adjusted;
+      coverageGap = coverageGap || coverageCheck.gap;
+    }
     if (opts.mixedCharges) {
       out = applyTotalFromItems(out, schemaUsed);
       console.info('[finish] mixed charges: total field(s) set from extracted line items.');
