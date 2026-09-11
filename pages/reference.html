@@ -33,6 +33,7 @@
     <tr><td><code>filter</code></td><td>string (JSON)</td><td>no</td><td>Row filter: <code>{"keepIf":["landing","take off"],"dropIf":["noise","infrastructure"]}</code> — words are matched (case-insensitive, hyphen-normalised) against each row's <code>description</code> + <code>charges_type</code></td></tr>
     <tr><td><code>pages</code></td><td>string</td><td>no</td><td>Page range to extract, e.g. <code>1-9</code>, <code>3</code>, or <code>1,3,5-7</code> (default: all pages)</td></tr>
     <tr><td><code>mixed_charges</code></td><td>string</td><td>no</td><td><code>1</code>/<code>true</code> when the invoice lists several charge types (e.g. landing + aerobridge + screening). The total field(s) are then set to the sum of the extracted line items instead of the invoice grand total.</td></tr>
+    <tr><td><code>additional_prompt</code></td><td>string</td><td>no</td><td>Optional extra instructions appended to the extraction prompt (never replaces it; prompt-injection phrases are rejected).</td></tr>
   </table>
   <div class="code-block" id="exExtract">
 curl -X POST '{{BASE_URL}}/extract' \
@@ -51,7 +52,7 @@ curl -X POST '{{BASE_URL}}/extract' \
 
 <div class="api-card">
   <div class="endpoint-head"><span class="method method-post">POST</span><code class="endpoint-path">/api/extract</code></div>
-  <p>Same as <code>/extract</code> but supports both sync and async modes. Append <code>?mode=async</code> to return a <code>jobId</code> immediately; omit it to wait for the full result synchronously (can be slow for large documents). Accepts the same fields (<code>file</code>, <code>template</code>, <code>schema</code>, <code>filter</code>, <code>pages</code>, <code>mixed_charges</code>).</p>
+  <p>Same as <code>/extract</code> but supports both sync and async modes. Append <code>?mode=async</code> to return a <code>jobId</code> immediately; omit it to wait for the full result synchronously (can be slow for large documents). Accepts the same fields (<code>file</code>, <code>template</code>, <code>schema</code>, <code>filter</code>, <code>pages</code>, <code>mixed_charges</code>, <code>additional_prompt</code>).</p>
   <div class="code-block" id="exApiExtract">
 curl -X POST '{{BASE_URL}}/api/extract?mode=async' \
   -H 'X-API-Key: YOUR_API_KEY' \

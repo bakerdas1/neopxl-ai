@@ -105,6 +105,7 @@
         </div>
       </div>
       <div class="form-group"><label><input type="checkbox" id="mixedChargesInput" style="width:auto;display:inline-block;margin-right:6px">Mixed charges (invoice has several charge types — total will be the sum of the extracted line items, not the invoice grand total)</label></div>
+      <div class="form-group"><label>Additional Instructions <span style="font-weight:400;color:var(--steel)">(optional — added to the extraction prompt)</span></label><textarea id="additionalPromptInput" rows="2" placeholder="e.g. Extract the aircraft registration from the header if the line item is empty"></textarea></div>
       <div style="display:flex;gap:8px">
         <button type="submit" class="btn btn-primary" id="extractBtn">Extract</button>
       </div>
@@ -581,7 +582,7 @@ function setPageMode(mode){
 }
 function openExtractionModal(){setPageMode('all');document.getElementById('pageRange').value='';document.getElementById('extractModalOverlay').style.display='flex'}
 function closeExtractModal(){document.getElementById('extractModalOverlay').style.display='none'}
-function resetExtractForm(){document.getElementById('fileInput').value='';document.getElementById('templateSelect').value='';document.getElementById('mixedChargesInput').checked=false;setPageMode('all');document.getElementById('pageRange').value='';document.getElementById('extractStatus').style.display='none';document.getElementById('extractResult').style.display='none';document.getElementById('extractBtn').disabled=false}
+function resetExtractForm(){document.getElementById('fileInput').value='';document.getElementById('templateSelect').value='';document.getElementById('mixedChargesInput').checked=false;document.getElementById('additionalPromptInput').value='';setPageMode('all');document.getElementById('pageRange').value='';document.getElementById('extractStatus').style.display='none';document.getElementById('extractResult').style.display='none';document.getElementById('extractBtn').disabled=false}
 document.getElementById('extractModalOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeExtractModal()});
 
 async function startExtraction(){
@@ -589,6 +590,7 @@ async function startExtraction(){
   btn.disabled=true;status.style.display='block';status.innerHTML='<p>Submitting...</p>';result.style.display='none';
   const fd=new FormData();fd.append('file',document.getElementById('fileInput').files[0]);fd.append('template',document.getElementById('templateSelect').value);
   if(document.getElementById('mixedChargesInput').checked)fd.append('mixed_charges','1');
+  const ap=document.getElementById('additionalPromptInput').value.trim();if(ap)fd.append('additional_prompt',ap);
   const rangeMode=document.getElementById('pageToggleRange').classList.contains('active');
   if(rangeMode){const pr=document.getElementById('pageRange').value.trim();if(pr)fd.append('pages',pr)}
   try{
