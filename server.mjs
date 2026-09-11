@@ -594,6 +594,11 @@ function extractRecords(markdown, chargeAliases, vocab, dateFormat) {
   // like `|---|---|---|` (only pipes, dashes, colons, spaces). A repeated header
   // on a continued table must NOT be treated as a summary/total marker.
   const isSeparatorRow = s => /^\s*\|[\s:|-]+\|\s*$/.test(s);
+  // A summary/total row carries a monetary VALUE, whereas a repeated column
+  // header like "Total Charge" has only column names and no amount. Tables from
+  // some converters omit the separator row entirely, so this is the reliable
+  // signal that a line is a total ROW rather than a header.
+  const hasMonetaryAmount = s => /(\d[\d,]*(?:\.\d{2}|,\d{2}))(?![\d.])/.test(s);
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
     const t = line.trim();
@@ -601,8 +606,8 @@ function extractRecords(markdown, chargeAliases, vocab, dateFormat) {
     if (stopCharges) continue;
     const isHeader = li + 1 < lines.length && isSeparatorRow(lines[li + 1]);
     // Summary / grand-total section marker — stop associating charges past it.
-    // Skip when the line is a table header (a column named "Total …" must not stop).
-    if (!isHeader && /(riepilogo|grand[- ]?total|\btotal\b)/i.test(t) && (lastArrival || lastDeparture)) {
+    // Only a total ROW (with a monetary value) stops; a repeated header must not.
+    if (!isHeader && hasMonetaryAmount(t) && /(riepilogo|grand[- ]?total|\btotal\b)/i.test(t) && (lastArrival || lastDeparture)) {
       stopCharges = true;
       continue;
     }
