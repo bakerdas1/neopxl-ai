@@ -264,7 +264,9 @@ INSTRUCTIONS
 5. Preserve every other extracted value exactly as-is. Do not omit, rename, or restructure any schema field.
 6. Return ONLY a single valid JSON object matching the schema — no markdown fences, no commentary.`;
 
-const COVERAGE_TOLERANCE = 0;
+// Allow a small count discrepancy (a 1-2 row miscount by the LLM auditor) before
+// triggering a repair, so complete extractions are never needlessly re-run.
+const COVERAGE_TOLERANCE = 2;
 
 export async function countRows(markdown, arrays, model, stats, extract) {
   if (!arrays || !arrays.length) return null;
