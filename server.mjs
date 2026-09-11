@@ -696,6 +696,46 @@ function reconcileMovementRows(markdown, data, arraySchema, dateInputFormat, dat
   return data;
 }
 
+// A table row split across a page boundary can be extracted twice: once as an
+// incomplete row (flight number ending in a comma, e.g. "ABY587,") and once as
+// the reconstructed full row ("ABY587,ABY588"). Collapse these: when two rows
+// share the same date + registration and one flight number is an incomplete
+// prefix of the other, drop the shorter one.
+function dedupeSplitRows(data, arraySchema) {
+  if (!data || typeof data !== 'object') return data;
+  const trim = s => String(s ?? '').trim().replace(/,\s*$/, '');
+  const field = (r, names) => {
+    for (const n of names) {
+      const v = r?.[n];
+      if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
+    }
+    return null;
+  };
+  for (const arr of arraySchema || []) {
+    const rows = data[arr.name];
+    if (!Array.isArray(rows) || rows.length < 2) continue;
+    const remove = new Set();
+    for (let i = 0; i < rows.length; i++) {
+      const a = rows[i];
+      const fa = trim(field(a, ['flight_number', 'flight', 'flight_no']));
+      const ra = field(a, ['aircraft_registration', 'registration']);
+      const da = field(a, ['date', 'movement_date', 'flight_date', 'landing_date']);
+      if (!fa || !ra || !da) continue;
+      for (let j = i + 1; j < rows.length; j++) {
+        const b = rows[j];
+        const fb = trim(field(b, ['flight_number', 'flight', 'flight_no']));
+        const rb = field(b, ['aircraft_registration', 'registration']);
+        const db = field(b, ['date', 'movement_date', 'flight_date', 'landing_date']);
+        if (ra !== rb || da !== db || !fb || fa === fb) continue;
+        if (fb.startsWith(fa + ',')) { remove.add(i); break; }
+        if (fa.startsWith(fb + ',')) remove.add(j);
+      }
+    }
+    if (remove.size) data[arr.name] = rows.filter((_, i) => !remove.has(i));
+  }
+  return data;
+}
+
 function applyFilter(data, filterConfig) {
   if (!filterConfig || !data || typeof data !== 'object') return data;
   const { dropIf, keepIf } = filterConfig;
@@ -841,6 +881,7 @@ async function runExtraction(coreResult, schemaUsed, model, opts = {}) {
     out = reconcileMovementRows(mdStructure, out, arraySchema, opts.dateInputFormat, opts.dateFormat, movementPattern, chargeAliases, ai.domains?.[opts.domain]?.fieldVocabulary);
     console.info(`[finish] post reconcileMovementRows: ${arrLog(out)}`);
     out = normalizeChargeTypes(out, chargeAliases);
+    out = dedupeSplitRows(out, arraySchema);
     // FINAL completeness check: count the records actually present in the
     // document and, if the final arrays are short, re-extract them. This runs
     // for every schema with arrays (unless the per-page path already handled
