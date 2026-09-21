@@ -136,6 +136,54 @@ function getBoundary(contentType) {
   return (m?.[1] || m?.[2])?.trim();
 }
 
+// Parse a multipart/form-data body into an array of uploaded files and a map of
+// plain fields. Unlike the old single-file parser, every part carrying a
+// filename is collected — repeated `file` fields are allowed.
+function parseMultipartBuffer(buf, boundary) {
+  const raw = buf.toString('latin1');
+  const parts = raw.split(`--${boundary}`).filter(p => p.includes('name='));
+  const files = [];
+  const fields = {};
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (trimmed === '' || trimmed === '--') continue;
+    const hEnd = part.indexOf('\r\n\r\n');
+    if (hEnd === -1) continue;
+    const header = part.slice(0, hEnd);
+    const body = part.slice(hEnd + 4);
+    const name = header.match(/name="([^"]+)"/)?.[1];
+    const fn = header.match(/filename="([^"]*)"/)?.[1];
+    if (fn !== undefined) {
+      const dataStr = body.endsWith('\r\n') ? body.slice(0, -2) : body;
+      files.push({ data: Buffer.from(dataStr, 'latin1'), filename: safeUploadFilename(fn) });
+    } else if (name) {
+      fields[name] = body.replace(/\r?\n$/, '');
+    }
+  }
+  return { files, fields };
+}
+
+// Rename duplicate uploads (e.g. two files both called "invoice.pdf") so stored
+// names never collide on disk or in object storage.
+function uniqueFilenames(files) {
+  const seen = new Set();
+  return files.map(f => {
+    let name = f.filename;
+    let i = 2;
+    while (seen.has(name)) {
+      const dot = f.filename.lastIndexOf('.');
+      name = dot === -1 ? `${f.filename}_${i}` : `${f.filename.slice(0, dot)}_${i}${f.filename.slice(dot)}`;
+      i++;
+    }
+    seen.add(name);
+    return { ...f, filename: name };
+  });
+}
+
+function joinFileNames(files) {
+  return (files || []).map(f => f.filename || f.name || 'document').join(' + ');
+}
+
 function sendJSON(res, code, data) {
   res.writeHead(code, {
     'Content-Type': 'application/json',
@@ -1114,8 +1162,9 @@ button:disabled{background:#93c5fd;cursor:not-allowed}
 <form id="uploadForm" enctype="multipart/form-data">
 <div class="form-row">
 <div>
-<label for="file">Document</label>
-<input type="file" id="file" name="file" required accept=".pdf,.png,.jpg,.jpeg,.txt,.docx,.html">
+<label for="file">Document(s)</label>
+<input type="file" id="file" name="file" multiple required accept=".pdf,.png,.jpg,.jpeg,.txt,.docx,.html">
+<div style="font-size:.75rem;color:#666;margin-top:.3rem">Multiple documents are merged into a single extraction (pages are concatenated in the order selected).</div>
 </div>
 <div>
 <label for="template">Template</label>
@@ -1163,7 +1212,7 @@ schemaArea.disabled = true;
 form.onsubmit = async (e) => {
   e.preventDefault();
   const fd = new FormData();
-  fd.append('file', document.getElementById('file').files[0]);
+  for (const f of document.getElementById('file').files) fd.append('file', f);
   fd.append('template', document.getElementById('template').value);
   fd.append('schema', document.getElementById('schema').value);
   fd.append('filter', document.getElementById('filter').value);
@@ -1492,11 +1541,14 @@ const server = createServer(async (req, res) => {
     if (job.templateName === 'schema-generation') return sendJSON(res, 400, { error: 'Schema generation tasks cannot be re-run' });
     if (!job.storedFiles || !job.storedFiles.length) return sendJSON(res, 400, { error: 'This task has no stored file to re-run' });
     const connector = job.storedFiles[0].storageId ? await getStorageConnector(job.storedFiles[0].storageId) : null;
-    const opened = await openJobFile(taskId, job.storedFiles[0], connector);
-    if (!opened) return sendJSON(res, 400, { error: 'The stored file could not be read for re-run' });
-    const chunks = [];
-    for await (const c of opened.stream) chunks.push(c);
-    const data = Buffer.concat(chunks);
+    const rerunFiles = [];
+    for (const storedFile of job.storedFiles) {
+      const opened = await openJobFile(taskId, storedFile, connector);
+      if (!opened) return sendJSON(res, 400, { error: 'The stored file could not be read for re-run' });
+      const chunks = [];
+      for await (const c of opened.stream) chunks.push(c);
+      rerunFiles.push({ data: Buffer.concat(chunks), filename: storedFile.name });
+    }
 
     const fields = {};
     let tplId = job.templateName || null;
@@ -1515,7 +1567,7 @@ const server = createServer(async (req, res) => {
 
     const model = process.env.MODEL || 'gemini-2.5-flash';
     const newJobId = crypto.randomBytes(8).toString('hex');
-    const started = await startAsyncPipeline(newJobId, { data, filename: job.storedFiles[0].name }, fields, user, model);
+    const started = await startAsyncPipeline(newJobId, rerunFiles, fields, user, model);
     return sendJSON(res, 200, { jobId: newJobId, rerunOf: taskId, ...started });
   }
 
@@ -1761,35 +1813,18 @@ const server = createServer(async (req, res) => {
       if (!boundary) return sendJSON(res, 400, { error: 'No boundary' });
 
       const buf = await readBodyBuffer(req, MAX_BODY_SIZE);
-      const raw = buf.toString('latin1');
-      const parts = raw.split(`--${boundary}`).filter(p => p.includes('name='));
-      let file = null;
-      const fields = {};
+      const { files, fields } = parseMultipartBuffer(buf, boundary);
 
-      for (const part of parts) {
-        const trimmed = part.trim();
-        if (trimmed === '' || trimmed === '--') continue;
-        const hEnd = part.indexOf('\r\n\r\n');
-        if (hEnd === -1) continue;
-        const header = part.slice(0, hEnd);
-        const body = part.slice(hEnd + 4);
-        const name = header.match(/name="([^"]+)"/)?.[1];
-        const fn = header.match(/filename="([^"]*)"/)?.[1];
-        if (fn !== undefined) {
-          const dataStr = body.endsWith('\r\n') ? body.slice(0, -2) : body;
-          file = { data: Buffer.from(dataStr, 'latin1'), filename: safeUploadFilename(fn) };
-        } else if (name) {
-          fields[name] = body.replace(/\r?\n$/, '');
-        }
-      }
-
-      if (!file || !file.data || !file.filename) {
+      if (!files.length) {
         return sendJSON(res, 400, { error: 'No file uploaded' });
       }
-      const ext = extname(file.filename).slice(1).toLowerCase();
-      if (!ALLOWED.includes(ext)) {
-        return sendJSON(res, 400, { error: `Unsupported: ${ext}. Allowed: ${ALLOWED.join(', ')}` });
+      for (const file of files) {
+        const ext = extname(file.filename).slice(1).toLowerCase();
+        if (!ALLOWED.includes(ext)) {
+          return sendJSON(res, 400, { error: `Unsupported: ${ext}. Allowed: ${ALLOWED.join(', ')}` });
+        }
       }
+      const uploads = uniqueFilenames(files);
 
       const jobId = crypto.randomBytes(8).toString('hex');
       const tplVal = (fields.template || '').trim();
@@ -1801,18 +1836,22 @@ const server = createServer(async (req, res) => {
       }
       const wallStart = Date.now();
       jobs.set(jobId, { status: 'processing', page: 0, totalPages: 0, userId: user.id });
-      await addJob(jobId, { fileName: file.filename, status: 'in-progress', schema: fields.schema || null, filter: fields.filter || null, templateName: tplName, createdAt: wallStart }, user.id);
-      try { await updateJob(jobId, { storedFiles: await persistJobFiles(jobId, [file]) }); } catch (e) { console.error('persist failed', e); }
+      await addJob(jobId, { fileName: joinFileNames(uploads), status: 'in-progress', schema: fields.schema || null, filter: fields.filter || null, templateName: tplName, createdAt: wallStart }, user.id);
+      try { await updateJob(jobId, { storedFiles: await persistJobFiles(jobId, uploads) }); } catch (e) { console.error('persist failed', e); }
 
       (async () => {
         let tmpDir;
         try {
           tmpDir = await mkdtemp(join(tmpdir(), 'documind-'));
-          const safeFn = safeUploadFilename(file.filename);
-          const tmpPath = join(tmpDir, safeFn);
-          await writeFile(tmpPath, file.data);
+          const filePaths = [];
+          for (let i = 0; i < uploads.length; i++) {
+            const safeFn = safeUploadFilename(uploads[i].filename);
+            const tmpPath = join(tmpDir, `${i}_${safeFn}`);
+            await writeFile(tmpPath, uploads[i].data);
+            filePaths.push(tmpPath);
+          }
 
-          const coreResult0 = applyPageRange(await convertDocument({ filePath: tmpPath, model, concurrency: 6, jobId }), fields.pages);
+          const coreResult0 = applyPageRange(await convertDocuments({ filePaths, fileNames: uploads.map(f => f.filename), model, concurrency: 6, jobId }), fields.pages);
           jobs.set(jobId, { ...jobs.get(jobId), totalPages: coreResult0.pages.length, userId: user.id });
 
           const { schemaUsed, filterUsed, verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain, mixedCharges, additionalPrompt } = await parseSchema(fields);
@@ -1952,7 +1991,7 @@ async function parseSchema(fields) {
   return { schemaUsed, filterUsed, verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain, mixedCharges, additionalPrompt };
 }
 
-async function startAsyncPipeline(jobId, file, fields, apiUser, model) {
+async function startAsyncPipeline(jobId, files, fields, apiUser, model) {
   const { schemaUsed, filterUsed, verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain, mixedCharges, additionalPrompt } = await parseSchema(fields);
   const tplId = (fields.template_id || fields.template || '').trim();
   let tplName = tplId || null;
@@ -1961,25 +2000,31 @@ async function startAsyncPipeline(jobId, file, fields, apiUser, model) {
     const tpl = tpls.find(t => t.id === tplId || t.name === tplId);
     if (tpl) tplName = tpl.name;
   }
+  const uploads = uniqueFilenames(files);
   const filterStr = fields.filter == null ? '' : typeof fields.filter === 'string' ? fields.filter : JSON.stringify(fields.filter);
   const finalFilter = filterStr.trim() || filterUsed || null;
 
   const tDir = await mkdtemp(join(tmpdir(), 'documind-'));
-  const safeFn = safeUploadFilename(file.filename);
-  const tPath = join(tDir, safeFn);
-  await writeFile(tPath, file.data);
-  const ext = file.filename?.split('.').pop()?.toLowerCase() || '';
-  const pageCount = ext === 'pdf' ? await quickPageCount(tPath) : 0;
-  const estimate = estimateTime(ext, pageCount, !!schemaUsed);
+  const filePaths = [];
+  let totalPages = 0;
+  for (let i = 0; i < uploads.length; i++) {
+    const safeFn = safeUploadFilename(uploads[i].filename);
+    const tPath = join(tDir, `${i}_${safeFn}`);
+    await writeFile(tPath, uploads[i].data);
+    filePaths.push(tPath);
+    const ext = uploads[i].filename?.split('.').pop()?.toLowerCase() || '';
+    if (ext === 'pdf') totalPages += await quickPageCount(tPath);
+  }
+  const estimate = estimateTime(files[0]?.filename?.split('.').pop()?.toLowerCase() || '', totalPages, !!schemaUsed);
 
   jobs.set(jobId, { status: 'processing', eta: estimate.text, userId: apiUser.id });
   const wallStart = Date.now();
-  await addJob(jobId, { fileName: file.filename, status: 'in-progress', pages: pageCount, schema: fields.schema || null, filter: finalFilter, templateName: tplName, apiKeyName: apiUser._apiKeyName || null, createdAt: wallStart }, apiUser.id);
-  try { await updateJob(jobId, { storedFiles: await persistJobFiles(jobId, [file]) }); } catch (e) { console.error('persist failed', e); }
+  await addJob(jobId, { fileName: joinFileNames(uploads), status: 'in-progress', pages: totalPages, schema: fields.schema || null, filter: finalFilter, templateName: tplName, apiKeyName: apiUser._apiKeyName || null, createdAt: wallStart }, apiUser.id);
+  try { await updateJob(jobId, { storedFiles: await persistJobFiles(jobId, uploads) }); } catch (e) { console.error('persist failed', e); }
 
   (async () => {
     try {
-      const coreRes0 = applyPageRange(await convertDocument({ filePath: tPath, model, concurrency: 6, jobId }), fields.pages);
+      const coreRes0 = applyPageRange(await convertDocuments({ filePaths, fileNames: uploads.map(f => f.filename), model, concurrency: 6, jobId }), fields.pages);
       let coreRes = coreRes0;
       let md = null;
 
@@ -2105,6 +2150,64 @@ async function convertDocument({ filePath, model, concurrency = 6, jobId }) {
   return { ...core, source: 'gemini', filePath, pymupdfMarkdown, pymupdfPages };
 }
 
+// Combine the per-file conversion results into ONE merged document so the whole
+// batch is extracted as a single result (e.g. a multi-page statement split
+// across several files). Pages are renumbered continuously and their markdown
+// is concatenated in upload order.
+function mergeCoreResults(results, filePaths, fileNames) {
+  const pages = [];
+  const pymupdfMds = [];
+  let pageNo = 0;
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let completionTime = 0;
+  for (const r of results || []) {
+    inputTokens += r.inputTokens || 0;
+    outputTokens += r.outputTokens || 0;
+    completionTime += r.completionTime || 0;
+    for (const p of r.pages || []) {
+      pages.push({ ...p, page: ++pageNo, contentLength: String(p.content || '').length });
+    }
+    if (r.pymupdfMarkdown) pymupdfMds.push(r.pymupdfMarkdown);
+  }
+  const allPymupdf = (results || []).length > 0 && (results || []).every(r => r.source === 'pymupdf');
+  return {
+    pages,
+    filePath: filePaths?.[0] || null,
+    filePaths: filePaths || null,
+    fileNames: fileNames || null,
+    fileName: (fileNames && fileNames.length ? fileNames : filePaths || []).map(n => sanitizeFileName(n)).join(' + ') || 'document',
+    source: allPymupdf ? 'pymupdf' : 'gemini',
+    inputTokens,
+    outputTokens,
+    completionTime,
+    pymupdfMarkdown: pymupdfMds.length ? pymupdfMds.join('\n\n') : null,
+    pymupdfPages: null,
+  };
+}
+
+// Convert each uploaded file independently, then merge them into a single
+// coreResult for one merged extraction.
+async function convertDocuments({ filePaths, fileNames, model, concurrency = 6, jobId }) {
+  const results = [];
+  for (const fp of filePaths) {
+    results.push(await convertDocument({ filePath: fp, model, concurrency, jobId }));
+  }
+  const merged = mergeCoreResults(results, filePaths, fileNames);
+  merged.perFile = results;
+  return merged;
+}
+
+// VLM fallback used when the pymupdf fast path extracted nothing: re-convert
+// every file through the enhanced VLM and merge the results.
+async function convertFilesVLM({ filePaths, fileNames, model, concurrency = 6, jobId }) {
+  const results = [];
+  for (const fp of filePaths) {
+    results.push(await documind({ filePath: fp, model, concurrency }));
+  }
+  return mergeCoreResults(results, filePaths, fileNames);
+}
+
 function parsePageRange(str) {
   if (!str || typeof str !== 'string') return null;
   const set = new Set();
@@ -2152,7 +2255,7 @@ async function runExtractionWithFallback(coreResult, schemaUsed, model, opts = {
       console.warn('[pymupdf] extraction failed; retrying with enhanced VLM:', e.message);
     }
     setStatusMessage(jobId, 'Attempt 2 of 2 — enhanced VLM');
-    const vlmCore = await documind({ filePath: coreResult.filePath, model, concurrency: 6 });
+    const vlmCore = await convertFilesVLM({ filePaths: coreResult.filePaths || [coreResult.filePath], fileNames: coreResult.fileNames || null, model, concurrency: 6, jobId });
     const res = await runExtraction(vlmCore, schemaUsed, model, opts);
     return { ...res, source: 'gemini', coreResult: vlmCore };
   }
@@ -2237,50 +2340,37 @@ function checkAuth(req, res) {
       if (!boundary) return sendJSON(res, 400, { error: 'No boundary' });
 
       const buf = await readBodyBuffer(req, MAX_BODY_SIZE);
-      const raw = buf.toString('latin1');
-      const parts = raw.split(`--${boundary}`).filter(p => p.includes('name='));
-      let file = null;
-      const fields = {};
+      const { files, fields } = parseMultipartBuffer(buf, boundary);
 
-      for (const part of parts) {
-        const trimmed = part.trim();
-        if (trimmed === '' || trimmed === '--') continue;
-        const hEnd = part.indexOf('\r\n\r\n');
-        if (hEnd === -1) continue;
-        const header = part.slice(0, hEnd);
-        const body = part.slice(hEnd + 4);
-        const name = header.match(/name="([^"]+)"/)?.[1];
-        const fn = header.match(/filename="([^"]*)"/)?.[1];
-        if (fn !== undefined) {
-          const dataStr = body.endsWith('\r\n') ? body.slice(0, -2) : body;
-          file = { data: Buffer.from(dataStr, 'latin1'), filename: safeUploadFilename(fn) };
-        } else if (name) {
-          fields[name] = body.replace(/\r?\n$/, '');
-        }
-      }
-
-      if (!file || !file.data || !file.filename) {
+      if (!files.length) {
         return sendJSON(res, 400, { error: 'File is required' });
       }
-      const ext = extname(file.filename).slice(1).toLowerCase();
-      if (!ALLOWED.includes(ext)) {
-        return sendJSON(res, 400, { error: `Unsupported file type: ${ext}. Allowed: ${ALLOWED.join(', ')}` });
+      for (const file of files) {
+        const ext = extname(file.filename).slice(1).toLowerCase();
+        if (!ALLOWED.includes(ext)) {
+          return sendJSON(res, 400, { error: `Unsupported file type: ${ext}. Allowed: ${ALLOWED.join(', ')}` });
+        }
       }
+      const uploads = uniqueFilenames(files);
 
       const model = process.env.MODEL || 'gemini-2.5-flash';
 
       if (isAsync) {
         const jobId = crypto.randomBytes(8).toString('hex');
-        const started = await startAsyncPipeline(jobId, file, fields, apiUser, model);
+        const started = await startAsyncPipeline(jobId, uploads, fields, apiUser, model);
         return sendJSON(res, 200, { jobId, ...started });
       }
 
       const wallStart = Date.now();
       const tmpDir = await mkdtemp(join(tmpdir(), 'documind-'));
-      const safeFn = safeUploadFilename(file.filename);
-      const tmpPath = join(tmpDir, safeFn);
-      await writeFile(tmpPath, file.data);
-      const coreResult0 = applyPageRange(await convertDocument({ filePath: tmpPath, model, concurrency: 6 }), fields.pages);
+      const filePaths = [];
+      for (let i = 0; i < uploads.length; i++) {
+        const safeFn = safeUploadFilename(uploads[i].filename);
+        const tmpPath = join(tmpDir, `${i}_${safeFn}`);
+        await writeFile(tmpPath, uploads[i].data);
+        filePaths.push(tmpPath);
+      }
+      const coreResult0 = applyPageRange(await convertDocuments({ filePaths, fileNames: uploads.map(f => f.filename), model, concurrency: 6 }), fields.pages);
       let coreResult = coreResult0;
       let markdown = null;
 

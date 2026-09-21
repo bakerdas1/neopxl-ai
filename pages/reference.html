@@ -27,7 +27,7 @@
   <p>Submit a document for extraction. The job runs in the background and returns immediately with a <code>jobId</code>. Poll <code>GET /api/tasks/:id</code> for status and results.</p>
   <table class="params-table">
     <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
-    <tr><td><code>file</code></td><td>file</td><td>yes</td><td>Document to extract (multipart/form-data)</td></tr>
+    <tr><td><code>file</code></td><td>file</td><td>yes</td><td>Document(s) to extract (multipart/form-data). Repeat the field for multiple files — they are merged into <b>one</b> extraction, with pages concatenated in order (e.g. a multi-page statement split across files)</td></tr>
     <tr><td><code>template</code></td><td>string</td><td>no</td><td>Template id or name (e.g. <code>np_001</code> or <code>"Landing Invoices"</code>)</td></tr>
     <tr><td><code>schema</code></td><td>string (JSON)</td><td>no</td><td>Array of field definitions, e.g. <code>[{"name":"invoiceNumber","type":"string","description":"..."}]</code></td></tr>
     <tr><td><code>filter</code></td><td>string (JSON)</td><td>no</td><td>Row filter: <code>{"keepIf":["landing","take off"],"dropIf":["noise","infrastructure"]}</code> — words are matched (case-insensitive, hyphen-normalised) against each row's <code>description</code> + <code>charges_type</code></td></tr>
@@ -39,6 +39,7 @@
 curl -X POST '{{BASE_URL}}/extract' \
   -H 'X-API-Key: YOUR_API_KEY' \
   -F 'file=@"/path/to/document.pdf"' \
+  -F 'file=@"/path/to/document_part2.pdf"' \
   -F 'template=np_001'
   <button class="btn-copy-code" onclick="copyCurl('exExtract')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
   </div>
@@ -52,11 +53,12 @@ curl -X POST '{{BASE_URL}}/extract' \
 
 <div class="api-card">
   <div class="endpoint-head"><span class="method method-post">POST</span><code class="endpoint-path">/api/extract</code></div>
-  <p>Same as <code>/extract</code> but supports both sync and async modes. Append <code>?mode=async</code> to return a <code>jobId</code> immediately; omit it to wait for the full result synchronously (can be slow for large documents). Accepts the same fields (<code>file</code>, <code>template</code>, <code>schema</code>, <code>filter</code>, <code>pages</code>, <code>mixed_charges</code>, <code>additional_prompt</code>).</p>
+  <p>Same as <code>/extract</code> but supports both sync and async modes. Append <code>?mode=async</code> to return a <code>jobId</code> immediately; omit it to wait for the full result synchronously (can be slow for large documents). Accepts the same fields (<code>file</code> — repeat for multiple documents, merged into one extraction — <code>template</code>, <code>schema</code>, <code>filter</code>, <code>pages</code>, <code>mixed_charges</code>, <code>additional_prompt</code>).</p>
   <div class="code-block" id="exApiExtract">
 curl -X POST '{{BASE_URL}}/api/extract?mode=async' \
   -H 'X-API-Key: YOUR_API_KEY' \
   -F 'file=@"/path/to/document.pdf"' \
+  -F 'file=@"/path/to/document_part2.pdf"' \
   -F 'schema=[{"name":"invoiceNumber","type":"string","description":"Invoice number"}]'
   <button class="btn-copy-code" onclick="copyCurl('exApiExtract')" title="Copy"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="rgba(255,255,255,0.8)" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
   </div>

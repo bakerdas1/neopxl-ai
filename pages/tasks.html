@@ -88,7 +88,7 @@
     <button class="modal-close" onclick="closeExtractModal()">×</button>
     <h3>New Extraction</h3>
     <form id="extractForm" enctype="multipart/form-data" style="margin-top:var(--spacing-md)" onsubmit="event.preventDefault(); startExtraction()">
-      <div class="form-group"><label>Document</label><input type="file" id="fileInput" required accept=".pdf,.png,.jpg,.jpeg,.txt,.docx,.html,.xlsx,.xls,.csv"></div>
+      <div class="form-group"><label>Document(s) <span style="font-weight:400;color:var(--steel)">(multiple files are merged into one extraction, in selected order)</span></label><input type="file" id="fileInput" multiple required accept=".pdf,.png,.jpg,.jpeg,.txt,.docx,.html,.xlsx,.xls,.csv"></div>
       <div class="form-group">
         <label>Template</label>
         <select id="templateSelect" onchange="onTemplateChange()"><option value="">None (raw markdown)</option></select>
@@ -588,7 +588,7 @@ document.getElementById('extractModalOverlay').addEventListener('click',e=>{if(e
 async function startExtraction(){
   const btn=document.getElementById('extractBtn');const status=document.getElementById('extractStatus');const result=document.getElementById('extractResult');
   btn.disabled=true;status.style.display='block';status.innerHTML='<p>Submitting...</p>';result.style.display='none';
-  const fd=new FormData();fd.append('file',document.getElementById('fileInput').files[0]);fd.append('template',document.getElementById('templateSelect').value);
+  const fd=new FormData();for(const f of document.getElementById('fileInput').files)fd.append('file',f);fd.append('template',document.getElementById('templateSelect').value);
   if(document.getElementById('mixedChargesInput').checked)fd.append('mixed_charges','1');
   const ap=document.getElementById('additionalPromptInput').value.trim();if(ap)fd.append('additional_prompt',ap);
   const rangeMode=document.getElementById('pageToggleRange').classList.contains('active');

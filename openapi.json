@@ -377,7 +377,7 @@
     "/api/extract": {
       "post": {
         "summary": "Extract data from a document",
-        "description": "Upload a document and schema to get structured data. Use ?mode=async for long-running extractions.",
+        "description": "Upload one or more documents and schema to get structured data. Repeat the `file` field for multiple documents — they are merged into a single extraction with pages concatenated in order (e.g. a multi-page statement split across files). Use ?mode=async for long-running extractions.",
         "operationId": "extractDocument",
         "tags": [
           "Extraction"
@@ -416,7 +416,7 @@
                   "file": {
                     "type": "string",
                     "format": "binary",
-                    "description": "Document file (PDF, PNG, JPG, DOCX, TXT, HTML)"
+                    "description": "Document file (PDF, PNG, JPG, DOCX, TXT, HTML). Repeat this field to merge multiple documents into one extraction."
                   },
                   "schema": {
                     "type": "string",
