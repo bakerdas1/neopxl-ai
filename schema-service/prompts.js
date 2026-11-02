@@ -7,6 +7,7 @@ Read the following markdown content and generate a schema of useful structured d
 - ${strict ? 'ABSOLUTE LIMIT: at most 15 fields in total across all nesting levels. Descriptions must be 10 words or fewer. Maximum nesting depth 2.' : 'Keep the schema COMPACT: at most 50 fields in total across all nesting levels.'}
 - Repeated line items must become ONE array field with children — never one field per occurrence.
 - Use generic, reusable field names (e.g. \`description\`, \`net_amount\`, \`aircraft_registration\`) instead of values from the document.
+- Never put a currency code in a field name: use \`line_total\`, not \`line_total_aed\` or \`total_usd\`. Capture the document currency once in a \`currency\` field.
 - No prose, no commentary, no markdown code fences. Return ONLY the JSON object described above.
 """${markdown}"""
 `;
@@ -19,6 +20,7 @@ Read the following markdown content and generate a schema for the structured dat
 - \`description\` fields MUST be at most 12 words: a single short noun phrase. No sentences, no paragraphs, never repeat or rephrase the same text.
 - ${strict ? 'ABSOLUTE LIMIT: at most 15 fields in total across all nesting levels. Descriptions must be 10 words or fewer. Maximum nesting depth 2.' : 'Keep the schema COMPACT: at most 50 fields in total across all nesting levels.'}
 - Repeated line items must become ONE array field with children — never one field per occurrence.
+- Never put a currency code in a field name: use \`line_total\`, not \`line_total_aed\` or \`total_usd\`. Capture the document currency once in a \`currency\` field.
 - No prose, no commentary, no markdown code fences. Return ONLY the JSON object described above.
 """${markdown}"""
 `;

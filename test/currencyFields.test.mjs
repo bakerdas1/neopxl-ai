@@ -96,6 +96,8 @@ test('normalizes a document currency name or symbol to an ISO code', () => {
   assert.equal(documentCurrencyCode('Indian Rupee'), 'INR');
   assert.equal(documentCurrencyCode('EURO'), 'EUR');
   assert.equal(documentCurrencyCode('US Dollar'), 'USD');
+  assert.equal(documentCurrencyCode('Rs.'), 'INR');
+  assert.equal(documentCurrencyCode('Dhs'), 'AED');
   assert.equal(documentCurrencyCode('د.إ'), 'AED');
   assert.equal(documentCurrencyCode('₹'), 'INR');
   assert.equal(documentCurrencyCode('EUR 1,234'), 'EUR');
