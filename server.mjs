@@ -24,6 +24,7 @@ import { initDb, closeDb } from './db.mjs';
 import { loadStorageConfig, getStorageConnectors, getStorageConnector, addStorageConnector, deleteStorageConnector, setActiveStorageConnector, putJobFiles, openJobFile, testS3Connection, deleteJobFiles } from './storage.mjs';
 import { buildCsvExport } from './csvExport.mjs';
 import { dropSummaryRowsFromResult } from './rowGuards.mjs';
+import { normalizeCurrencyFields, findCurrencyFieldGroups, reconcileCurrencyAmounts } from './currencyFields.mjs';
 
 const PORT = 3022;
 const ALLOWED = ['pdf', 'png', 'jpg', 'jpeg', 'txt', 'docx', 'html', 'xlsx', 'xls', 'csv'];
@@ -894,6 +895,9 @@ async function runExtraction(coreResult, schemaUsed, model, opts = {}) {
   const pages = coreResult.pages;
   const fullZod = convertToZodSchema(schemaUsed);
   const arraySchema = arraySchemaOnly(schemaUsed);
+  // Numeric fields whose names embed a currency (line_total_aed, line_total_usd,
+  // ...) are reconciled into their neutral sibling (line_total) after extraction.
+  const currencyGroups = findCurrencyFieldGroups(schemaUsed);
   const protectArrays = (pages.length > 20 || opts.perPage) && arraySchema.length > 0;
   const stats = { time: 0, inputTokens: 0, outputTokens: 0 };
   const markdown = pages.map(p => p.content).join('\n\n');
@@ -910,6 +914,12 @@ async function runExtraction(coreResult, schemaUsed, model, opts = {}) {
   const finish = async (data, coverageInfo = {}) => {
     const { skipGlobal = false, preAdjusted = false, gap = null } = coverageInfo;
     let out = data;
+    if (currencyGroups.length > 0) {
+      const initial = reconcileCurrencyAmounts(out, currencyGroups, out?.currency);
+      if (initial.moved || initial.dropped) {
+        console.info(`[currency] canonicalized ${initial.moved} amount(s), cleared ${initial.dropped} currency-suffixed duplicate(s).`);
+      }
+    }
     let reconciled = false;
     let coverageAdjusted = preAdjusted;
     let coverageGap = gap;
@@ -940,6 +950,15 @@ async function runExtraction(coreResult, schemaUsed, model, opts = {}) {
       out = coverageCheck.data;
       coverageAdjusted = coverageAdjusted || coverageCheck.adjusted;
       coverageGap = coverageGap || coverageCheck.gap;
+    }
+    // Coverage/reconciliation passes can re-emit rows, so canonicalize again at
+    // the very end: amounts always end up in the neutral field, never in a
+    // field named for a different currency.
+    if (currencyGroups.length > 0) {
+      const final = reconcileCurrencyAmounts(out, currencyGroups, out?.currency);
+      if (final.moved || final.dropped) {
+        console.info(`[currency] final canonicalization: moved ${final.moved}, cleared ${final.dropped}.`);
+      }
     }
     if (opts.mixedCharges) {
       out = applyTotalFromItems(out, schemaUsed);
@@ -2002,6 +2021,10 @@ async function parseSchema(fields) {
       } catch {}
     }
   }
+  // Currency is a document property, not a field-name suffix. Normalizing here
+  // gives every currency-suffixed amount group a neutral field (line_total) and
+  // keeps the schema the model sees semantically consistent. No-op otherwise.
+  if (schemaUsed) schemaUsed = normalizeCurrencyFields(schemaUsed);
   return { schemaUsed, filterUsed, verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain, mixedCharges, additionalPrompt, dropSummaryRows };
 }
 

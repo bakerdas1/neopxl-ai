@@ -36,6 +36,7 @@
     <tr><td><code>drop_summary_rows</code></td><td>string</td><td>no</td><td><code>1</code>/<code>true</code> to drop array rows that carry no identifying value (no flight, registration, date, time, etc.) when at least 80% of their siblings are identified. Use for invoices that print a totals block as if it were a line item. Off by default; can also be enabled per template.</td></tr>
     <tr><td><code>additional_prompt</code></td><td>string</td><td>no</td><td>Optional extra instructions appended to the extraction prompt (never replaces it; prompt-injection phrases are rejected).</td></tr>
   </table>
+  <p style="margin-top:var(--spacing-sm)"><b>Currency handling:</b> when a schema has two or more numeric fields that differ only by a currency suffix (e.g. <code>line_total_aed</code> and <code>line_total_usd</code>), the extracted amount is written to the neutral field (<code>line_total</code>) in the document's own <code>currency</code>. The suffixed fields are populated only when the document explicitly denominates an amount in that currency. No currency conversion is performed.</p>
   <div class="code-block" id="exExtract">
 curl -X POST '{{BASE_URL}}/extract' \
   -H 'X-API-Key: YOUR_API_KEY' \

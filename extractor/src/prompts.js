@@ -27,6 +27,12 @@ RULES
    Search for patterns like 'VAT:', 'Tax Code:', 'Tax #', 'TRN:', 'VAT Reg', 'Currency:', percentages with '%', or identifier codes.
    Re-scan headers, footers, and fine print before concluding a financial field is null.
 
+   CURRENCY DISCIPLINE:
+   - Determine the document's currency once and write it in the \`currency\` field (prefer the ISO code: INR, AED, USD, EUR, ...).
+   - Amounts belong in currency-neutral fields (for example \`line_total\`, \`net_amount\`). Put an amount denominated in the document's currency in the neutral field.
+   - A field whose name ends with a currency code (for example \`line_total_aed\`, \`total_usd\`) may be populated ONLY when the document explicitly states that amount in that currency. Never put an INR amount in a field named for AED, or a EUR amount in a field named for USD.
+   - Never convert amounts between currencies and never invent an exchange rate.
+
    AVIATION / AIRCRAFT / FLIGHT FIELDS (highest priority – never miss these):
    - Aircraft Registration / Tail Number (also called Reg, A/C Reg, Registration Mark, MSN, Serial if linked to reg)
      Look for patterns:
