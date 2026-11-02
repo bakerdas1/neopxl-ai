@@ -121,3 +121,91 @@ test('ignores low-cardinality context fields even when they take two values', ()
   assert.equal(res.dropped, 3);
   assert.equal(res.rows.length, 35);
 });
+
+const detailField = {
+  name: 'landing_charges',
+  type: 'array',
+  items: {
+    properties: {
+      date: { type: 'string' },
+      aircraft_registration: { type: 'string' },
+      flight_number: { type: 'string' },
+      ata: { type: 'string' },
+      atd: { type: 'string' },
+      description: { type: 'string' },
+      quantity: { type: 'number' },
+      net_amount: { type: 'number' },
+      tax: { type: 'number' },
+      line_total: { type: 'number' },
+    },
+  },
+};
+
+const detailRow = (i) => ({
+  date: `2026-09-${String((i % 8) + 8).padStart(2, '0')}`,
+  aircraft_registration: `A6AU${String.fromCharCode(65 + (i % 20))}`,
+  flight_number: ['3L133', '3L131', '3L248'][i % 3],
+  ata: `${String(5 + (i % 12)).padStart(2, '0')}:00`,
+  atd: `${String(5 + (i % 12)).padStart(2, '0')}:30`,
+  description: 'Landing Charge - Int.',
+  quantity: 1,
+  net_amount: 157850,
+  tax: 314860,
+  line_total: 472710,
+});
+
+const invoiceSummary = (count) => ({
+  date: '2026-09-15',
+  aircraft_registration: null,
+  flight_number: null,
+  ata: null,
+  atd: null,
+  description: 'LANDING CHARGE INTERNATIONAL',
+  quantity: count,
+  net_amount: 157850 * count,
+  tax: 653499,
+  line_total: 4284049,
+});
+
+test('drops a dated page-1 invoice line when its amount is the sum of the detail rows', () => {
+  // Invoice 193200001475: one invoice line for 23 landings + 23 annexure rows.
+  const rows = [invoiceSummary(23), ...Array.from({ length: 23 }, (_, i) => detailRow(i))];
+  const res = dropUnidentifiedSummaryRows(rows, detailField);
+  assert.equal(res.dropped, 1);
+  assert.equal(res.rows.length, 23);
+  assert.equal(res.rows.some((r) => r.description === 'LANDING CHARGE INTERNATIONAL'), false);
+});
+
+test('drops a dated aggregate for a different row count', () => {
+  const rows = [invoiceSummary(16), ...Array.from({ length: 16 }, (_, i) => detailRow(i))];
+  const res = dropUnidentifiedSummaryRows(rows, detailField);
+  assert.equal(res.dropped, 1);
+  assert.equal(res.rows.length, 16);
+});
+
+test('keeps a fully identified row even when its amount equals the sum of the others', () => {
+  const rows = [
+    { ...detailRow(0), net_amount: 100 },
+    { ...detailRow(1), net_amount: 100 },
+    { ...detailRow(2), net_amount: 100 },
+    { ...detailRow(3), net_amount: 300 },
+  ];
+  const res = dropUnidentifiedSummaryRows(rows, detailField);
+  assert.equal(res.dropped, 0);
+  assert.equal(res.rows.length, 4);
+});
+
+test('keeps a sparse dated row whose amount is not the sum of the detail rows', () => {
+  const rows = [invoiceSummary(23), ...Array.from({ length: 23 }, (_, i) => detailRow(i))];
+  rows[0] = { ...rows[0], net_amount: 999 };
+  const res = dropUnidentifiedSummaryRows(rows, detailField);
+  assert.equal(res.dropped, 0);
+  assert.equal(res.rows.length, 24);
+});
+
+test('leaves small arrays alone even when one amount equals the sum', () => {
+  const rows = [invoiceSummary(2), { ...detailRow(0), net_amount: 157850 }, { ...detailRow(1), net_amount: 157850 }];
+  const res = dropUnidentifiedSummaryRows(rows, detailField);
+  assert.equal(res.dropped, 0);
+  assert.equal(res.rows.length, 3);
+});
