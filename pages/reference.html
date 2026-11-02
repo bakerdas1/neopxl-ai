@@ -33,6 +33,7 @@
     <tr><td><code>filter</code></td><td>string (JSON)</td><td>no</td><td>Row filter: <code>{"keepIf":["landing","take off"],"dropIf":["noise","infrastructure"]}</code> — words are matched (case-insensitive, hyphen-normalised) against each row's <code>description</code> + <code>charges_type</code></td></tr>
     <tr><td><code>pages</code></td><td>string</td><td>no</td><td>Page range to extract, e.g. <code>1-9</code>, <code>3</code>, or <code>1,3,5-7</code> (default: all pages)</td></tr>
     <tr><td><code>mixed_charges</code></td><td>string</td><td>no</td><td><code>1</code>/<code>true</code> when the invoice lists several charge types (e.g. landing + aerobridge + screening). The total field(s) are then set to the sum of the extracted line items instead of the invoice grand total.</td></tr>
+    <tr><td><code>drop_summary_rows</code></td><td>string</td><td>no</td><td><code>1</code>/<code>true</code> to drop array rows that carry no identifying value (no flight, registration, date, time, etc.) when at least 80% of their siblings are identified. Use for invoices that print a totals block as if it were a line item. Off by default; can also be enabled per template.</td></tr>
     <tr><td><code>additional_prompt</code></td><td>string</td><td>no</td><td>Optional extra instructions appended to the extraction prompt (never replaces it; prompt-injection phrases are rejected).</td></tr>
   </table>
   <div class="code-block" id="exExtract">

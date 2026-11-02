@@ -5,7 +5,8 @@
   "scripts": {
     "start": "npm run start --workspace=extractor",
     "dev": "npm run dev --workspace=extractor",
-    "ui": "node server.mjs"
+    "ui": "node server.mjs",
+    "test": "node --test test/"
   },
   "workspaces": [
     "core",

@@ -334,7 +334,7 @@ export async function deleteCompany(id) {
 
 export async function getTemplates() {
   const r = await pool.query('SELECT * FROM templates ORDER BY created_at ASC, id ASC');
-  return r.rows.map(t => ({ ...t, verifyCoverage: t.verify_coverage === 1 || t.verify_coverage === true, verifyTotals: t.verify_totals === 0 ? false : true, perPage: t.per_page === 1 || t.per_page === true, dateFormat: t.date_format || null, dateInputFormat: t.date_input_format || null }));
+  return r.rows.map(t => ({ ...t, verifyCoverage: t.verify_coverage === 1 || t.verify_coverage === true, verifyTotals: t.verify_totals === 0 ? false : true, perPage: t.per_page === 1 || t.per_page === true, dropSummaryRows: t.drop_summary_rows === 1 || t.drop_summary_rows === true, dateFormat: t.date_format || null, dateInputFormat: t.date_input_format || null }));
 }
 
 export async function addTemplate(template) {
@@ -345,11 +345,12 @@ export async function addTemplate(template) {
   const verifyCoverage = template.verifyCoverage ? 1 : 0;
   const verifyTotals = template.verifyTotals === false ? 0 : 1;
   const perPage = template.perPage ? 1 : 0;
+  const dropSummaryRows = template.dropSummaryRows ? 1 : 0;
   const r = await pool.query(
-    'INSERT INTO templates (id, name, schema, filter, keywords, verify_coverage, verify_totals, per_page, date_format, date_input_format, domain, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *',
-    [id, template.name, template.schema || '', template.filter || '', template.keywords || '', verifyCoverage, verifyTotals, perPage, template.dateFormat || null, template.dateInputFormat || null, template.domain || null, Date.now()]
+    'INSERT INTO templates (id, name, schema, filter, keywords, verify_coverage, verify_totals, per_page, drop_summary_rows, date_format, date_input_format, domain, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *',
+    [id, template.name, template.schema || '', template.filter || '', template.keywords || '', verifyCoverage, verifyTotals, perPage, dropSummaryRows, template.dateFormat || null, template.dateInputFormat || null, template.domain || null, Date.now()]
   );
-  return { ...r.rows[0], verifyCoverage: r.rows[0].verify_coverage === 1, verifyTotals: r.rows[0].verify_totals === 0 ? false : true, perPage: r.rows[0].per_page === 1, dateFormat: r.rows[0].date_format || null, dateInputFormat: r.rows[0].date_input_format || null };
+  return { ...r.rows[0], verifyCoverage: r.rows[0].verify_coverage === 1, verifyTotals: r.rows[0].verify_totals === 0 ? false : true, perPage: r.rows[0].per_page === 1, dropSummaryRows: r.rows[0].drop_summary_rows === 1, dateFormat: r.rows[0].date_format || null, dateInputFormat: r.rows[0].date_input_format || null };
 }
 
 export async function updateTemplate(id, updates) {
@@ -371,6 +372,10 @@ export async function updateTemplate(id, updates) {
     cols.push(`per_page = $${vals.length + 1}`);
     vals.push(updates.perPage ? 1 : 0);
   }
+  if (updates.dropSummaryRows !== undefined) {
+    cols.push(`drop_summary_rows = $${vals.length + 1}`);
+    vals.push(updates.dropSummaryRows ? 1 : 0);
+  }
   if (updates.dateFormat !== undefined) {
     cols.push(`date_format = $${vals.length + 1}`);
     vals.push(updates.dateFormat || null);
@@ -382,7 +387,7 @@ export async function updateTemplate(id, updates) {
   if (!cols.length) return null;
   const r = await pool.query(`UPDATE templates SET ${cols.join(', ')} WHERE id = $${vals.length + 1} RETURNING *`, [...vals, id]);
   if (!r.rows[0]) return null;
-  return { ...r.rows[0], verifyCoverage: r.rows[0].verify_coverage === 1, verifyTotals: r.rows[0].verify_totals === 0 ? false : true, perPage: r.rows[0].per_page === 1, dateFormat: r.rows[0].date_format || null, dateInputFormat: r.rows[0].date_input_format || null };
+  return { ...r.rows[0], verifyCoverage: r.rows[0].verify_coverage === 1, verifyTotals: r.rows[0].verify_totals === 0 ? false : true, perPage: r.rows[0].per_page === 1, dropSummaryRows: r.rows[0].drop_summary_rows === 1, dateFormat: r.rows[0].date_format || null, dateInputFormat: r.rows[0].date_input_format || null };
 }
 
 export async function deleteTemplate(id) {
