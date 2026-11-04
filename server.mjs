@@ -25,7 +25,7 @@ import { loadStorageConfig, getStorageConnectors, getStorageConnector, addStorag
 import { buildCsvExport } from './csvExport.mjs';
 import { dropSummaryRowsFromResult } from './rowGuards.mjs';
 import { normalizeCurrencyFields, findCurrencyFieldGroups, reconcileCurrencyAmounts } from './currencyFields.mjs';
-import { buildAdditionalInstruction } from './promptGuard.mjs';
+import { buildAdditionalInstruction, sanitizeSchema } from './promptGuard.mjs';
 
 const PORT = 3022;
 const ALLOWED = ['pdf', 'png', 'jpg', 'jpeg', 'txt', 'docx', 'html', 'xlsx', 'xls', 'csv'];
@@ -2012,6 +2012,9 @@ async function parseSchema(fields) {
   // gives every currency-suffixed amount group a neutral field (line_total) and
   // keeps the schema the model sees semantically consistent. No-op otherwise.
   if (schemaUsed) schemaUsed = normalizeCurrencyFields(schemaUsed);
+  // Field names and descriptions are untrusted text that reaches the model, so
+  // strip any prompt-injection attempt before the schema is converted.
+  if (schemaUsed) schemaUsed = sanitizeSchema(schemaUsed);
   return { schemaUsed, filterUsed, verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain, mixedCharges, additionalPrompt, dropSummaryRows };
 }
 

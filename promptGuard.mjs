@@ -49,12 +49,13 @@ export function normalize(input) {
 // Two 2s, or a 2 plus a 1, also reach the threshold.
 
 const PATTERNS = [
-  // Override / forget the instructions. ("skip" and "omit" are handled by the
-  // narrower pattern below so "skip empty rows" stays legal.)
-  [/\b(ignore|disregard|forget|discard|override|overwrite|bypass|jailbreak)\b.{0,60}\b(everything|all|instructions?|prompts?|rules?|guidelines?|context|system|schema|above|previous|prior|earlier)\b/i, 'override-instructions', 3],
-
-  // Skip / omit the data wholesale (global object only, not "skip empty rows").
-  [/\b(skip|omit|drop)\b.{0,25}\b(all|everything|entire|the data|the rows?|the results?|the output)\b/i, 'skip-all-data', 3],
+  // Override / forget / skip / omit the EXTRACTION SYSTEM, or a global wipe.
+  // The verb is only an attack when its target is the instructions/prompt/schema
+  // or a blanket ("everything", "all", "the whole document"). A document-scope
+  // target (page, item, row, line, section, header, footer, column, field,
+  // table, entry, block) is NOT in this list, so "ignore the second page" and
+  // "skip the header row" stay legal.
+  [/\b(ignore|disregard|forget|discard|override|overwrite|bypass|jailbreak|skip|omit|drop|leave\s+out)\b.{0,60}\b(everything|all|instructions?|prompts?|rules?|guidelines?|context|system|schema|above|previous|prior|earlier|entire\s+document|whole\s+document|extract\w*)\b/i, 'override-instructions', 3],
 
   // Identity / mode shift.
   [/\byou\s+(are|will|must)\s+now\b|\bpretend\s+(you|to\s+be)\b|\brole\s*-?\s*play\b|\bdo\s+anything\s+now\b|\bdeveloper\s+mode\b|\bDAN\s+mode\b/i, 'role-shift', 3],
@@ -100,7 +101,9 @@ const PATTERNS = [
 ];
 
 export function scoreText(text) {
-  const t = normalize(text);
+  // Fold identifier separators to spaces so snake/kebab words get word
+  // boundaries ("ignore_all_instructions" -> "ignore all instructions").
+  const t = normalize(text).replace(/[_-]+/g, ' ');
   let score = 0;
   const matches = [];
   for (const [pattern, label, weight] of PATTERNS) {
@@ -173,4 +176,54 @@ export function inspectAdditionalInstruction(text, { logger = console, context =
 export function buildAdditionalInstruction(text, opts) {
   const r = inspectAdditionalInstruction(text, opts);
   return r.ok ? r.instruction : null;
+}
+
+/* ------------------------------------------------------------------ */
+/* 5. Schema sanitization                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Neutralize any prompt-injection in a schema before it is converted and sent
+ * to the model. Field `description` and `name` strings are the two places
+ * untrusted text can reach the model through the schema (via responseSchema /
+ * the outline), so both are sanitized silently:
+ *
+ *   - text is normalized (NFKC + zero-width/bidi strip) and its angle brackets
+ *     neutralized so it cannot fake a tag;
+ *   - if the text trips the same weighted detector used above, a `description`
+ *     is cleared and a `name` is renamed to a neutral `field_N`.
+ *
+ * Mutates and returns the schema (documind array form, with `children`).
+ */
+export function sanitizeSchema(schema) {
+  if (!Array.isArray(schema)) return schema;
+  let counter = 0;
+  const nextName = () => `field_${++counter}`;
+  const safeIdent = (s) => s.replace(/[^A-Za-z0-9_]/g, '_').replace(/^_+|_+$/g, '');
+  const neutralizeBrackets = (s) => s.replace(/</g, '\u2039').replace(/>/g, '\u203A');
+
+  const walk = (fields) => {
+    if (!Array.isArray(fields)) return;
+    for (const field of fields) {
+      if (!field || typeof field !== 'object') continue;
+
+      if (typeof field.name === 'string') {
+        const t = normalize(field.name);
+        const { score } = scoreText(t);
+        const name = safeIdent(t);
+        field.name = (score >= BLOCK_SCORE || !name) ? nextName() : name;
+      }
+
+      if (typeof field.description === 'string') {
+        const t = normalize(field.description);
+        const { score } = scoreText(t);
+        field.description = score >= BLOCK_SCORE ? '' : neutralizeBrackets(t);
+      }
+
+      if (Array.isArray(field.children)) walk(field.children);
+    }
+  };
+
+  walk(schema);
+  return schema;
 }
