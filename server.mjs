@@ -1585,6 +1585,7 @@ const server = createServer(async (req, res) => {
       fields.filter = job.filter || '';
       if (job.schema) fields.schema = Array.isArray(job.schema) ? JSON.stringify(job.schema) : String(job.schema);
     }
+    if (job.additionalPrompt) fields.additional_prompt = job.additionalPrompt;
 
     const model = process.env.MODEL || 'gemini-2.5-flash';
     const newJobId = crypto.randomBytes(8).toString('hex');
@@ -1857,7 +1858,7 @@ const server = createServer(async (req, res) => {
       }
       const wallStart = Date.now();
       jobs.set(jobId, { status: 'processing', page: 0, totalPages: 0, userId: user.id });
-      await addJob(jobId, { fileName: joinFileNames(uploads), status: 'in-progress', schema: fields.schema || null, filter: fields.filter || null, templateName: tplName, createdAt: wallStart }, user.id);
+      await addJob(jobId, { fileName: joinFileNames(uploads), status: 'in-progress', schema: fields.schema || null, filter: fields.filter || null, additionalPrompt: (fields.additional_prompt || fields.additional_instructions || '').trim() || null, templateName: tplName, createdAt: wallStart }, user.id);
       try { await updateJob(jobId, { storedFiles: await persistJobFiles(jobId, uploads) }); } catch (e) { console.error('persist failed', e); }
 
       (async () => {
@@ -2046,7 +2047,7 @@ async function startAsyncPipeline(jobId, files, fields, apiUser, model) {
 
   jobs.set(jobId, { status: 'processing', eta: estimate.text, userId: apiUser.id });
   const wallStart = Date.now();
-  await addJob(jobId, { fileName: joinFileNames(uploads), status: 'in-progress', pages: totalPages, schema: fields.schema || null, filter: finalFilter, templateName: tplName, apiKeyName: apiUser._apiKeyName || null, createdAt: wallStart }, apiUser.id);
+  await addJob(jobId, { fileName: joinFileNames(uploads), status: 'in-progress', pages: totalPages, schema: fields.schema || null, filter: finalFilter, additionalPrompt: (fields.additional_prompt || fields.additional_instructions || '').trim() || null, templateName: tplName, apiKeyName: apiUser._apiKeyName || null, createdAt: wallStart }, apiUser.id);
   try { await updateJob(jobId, { storedFiles: await persistJobFiles(jobId, uploads) }); } catch (e) { console.error('persist failed', e); }
 
   (async () => {

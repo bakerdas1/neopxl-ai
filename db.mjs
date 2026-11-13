@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   gemini_calls INTEGER NOT NULL DEFAULT 0,
   schema JSONB,
   filter JSONB,
+  additional_prompt TEXT,
   template_name TEXT,
   user_id TEXT,
   api_key_name TEXT,
@@ -76,6 +77,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   status_message TEXT
 );
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS status_message TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS additional_prompt TEXT;
 CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC);
 

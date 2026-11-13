@@ -22,6 +22,7 @@ function rowToJob(r) {
     geminiCalls: r.gemini_calls || 0,
     schema: r.schema ?? null,
     filter: r.filter ?? null,
+    additionalPrompt: r.additional_prompt ?? null,
     templateName: r.template_name ?? null,
     userId: r.user_id || 'system',
     apiKeyName: r.api_key_name ?? null,
@@ -50,6 +51,7 @@ export async function addJob(jobId, meta, userId) {
     gemini_calls: meta?.geminiCalls || 0,
     schema: jsonb(meta?.schema ?? null),
     filter: jsonb(meta?.filter ?? null),
+    additional_prompt: meta?.additionalPrompt ?? null,
     template_name: meta?.templateName ?? null,
     user_id: userId || 'system',
     api_key_name: meta?.apiKeyName ?? null,
@@ -79,7 +81,7 @@ export async function updateJob(jobId, updates) {
   const map = {
     fileName: 'file_name', pages: 'pages', status: 'status', geminiCalls: 'gemini_calls',
     templateName: 'template_name', apiKeyName: 'api_key_name', error: 'error', userId: 'user_id',
-    statusMessage: 'status_message',
+    statusMessage: 'status_message', additionalPrompt: 'additional_prompt',
     createdAt: 'created_at', completedAt: 'completed_at',
   };
   for (const [k, col] of Object.entries(map)) {
@@ -124,7 +126,7 @@ export async function updateJob(jobId, updates) {
 }
 
 export async function getJobs(userId, isAdmin) {
-  const cols = 'j.id, j.file_name, j.pages, j.status, j.timing, j.tokens, j.cost, j.gemini_calls, j.schema, j.filter, j.template_name, j.user_id, j.api_key_name, j.created_at, j.completed_at, j.error, j.status_message, j.stored_files, u.email AS user_email, u.first_name AS user_first_name, u.last_name AS user_last_name';
+  const cols = 'j.id, j.file_name, j.pages, j.status, j.timing, j.tokens, j.cost, j.gemini_calls, j.schema, j.filter, j.additional_prompt, j.template_name, j.user_id, j.api_key_name, j.created_at, j.completed_at, j.error, j.status_message, j.stored_files, u.email AS user_email, u.first_name AS user_first_name, u.last_name AS user_last_name';
   const q = isAdmin
     ? await pool.query(`SELECT ${cols} FROM jobs j LEFT JOIN users u ON u.id = j.user_id ORDER BY j.created_at DESC`)
     : await pool.query(`SELECT ${cols} FROM jobs j LEFT JOIN users u ON u.id = j.user_id WHERE j.user_id = $1 OR j.user_id = $2 ORDER BY j.created_at DESC`, [userId, 'system']);
@@ -132,7 +134,7 @@ export async function getJobs(userId, isAdmin) {
 }
 
 export async function getRecentJobs(limit, userId, isAdmin) {
-  const cols = 'j.id, j.file_name, j.pages, j.status, j.timing, j.tokens, j.cost, j.gemini_calls, j.schema, j.filter, j.template_name, j.user_id, j.api_key_name, j.created_at, j.completed_at, j.error, j.status_message, j.stored_files, u.email AS user_email, u.first_name AS user_first_name, u.last_name AS user_last_name';
+  const cols = 'j.id, j.file_name, j.pages, j.status, j.timing, j.tokens, j.cost, j.gemini_calls, j.schema, j.filter, j.additional_prompt, j.template_name, j.user_id, j.api_key_name, j.created_at, j.completed_at, j.error, j.status_message, j.stored_files, u.email AS user_email, u.first_name AS user_first_name, u.last_name AS user_last_name';
   const base = isAdmin
     ? `SELECT ${cols} FROM jobs j LEFT JOIN users u ON u.id = j.user_id`
     : `SELECT ${cols} FROM jobs j LEFT JOIN users u ON u.id = j.user_id WHERE j.user_id = $1 OR j.user_id = $2`;
