@@ -1369,6 +1369,7 @@ const server = createServer(async (req, res) => {
       .replace('{{DEV_ACTIVE}}', (activePage === 'keys' || activePage === 'reference') ? 'active' : '')
       .replace('{{DEV_OPEN}}', (activePage === 'keys' || activePage === 'reference') ? 'block' : 'none')
       .replace('{{SCHEMAS_ACTIVE}}', activePage === 'schemas' ? 'active' : '')
+      .replace('{{TEMPLATES_ACTIVE}}', activePage === 'templates' ? 'active' : '')
       .replace('{{SETTINGS_ACTIVE}}', activePage === 'settings' ? 'active' : '');
     res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
@@ -1412,6 +1413,7 @@ const server = createServer(async (req, res) => {
       .replace('{{DEV_ACTIVE}}', 'active')
       .replace('{{DEV_OPEN}}', 'block')
       .replace('{{SCHEMAS_ACTIVE}}', '')
+      .replace('{{TEMPLATES_ACTIVE}}', '')
       .replace('{{SETTINGS_ACTIVE}}', '');
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(html);
@@ -1420,6 +1422,10 @@ const server = createServer(async (req, res) => {
 
   if (url.pathname === '/schemas') {
     return servePage('schemas.html', 'Schema Generator', 'schemas');
+  }
+
+  if (url.pathname === '/templates') {
+    return servePage('templates.html', 'Templates', 'templates');
   }
 
   if (url.pathname === '/settings') {

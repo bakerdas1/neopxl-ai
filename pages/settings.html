@@ -1,20 +1,12 @@
 <div class="topbar"><h1>Settings</h1></div>
 <div class="settings-tabs" id="settingsTabs">
-  <button class="settings-tab active" data-stab="templates">Templates</button>
-  <button class="settings-tab" data-stab="ai">AI Settings</button>
+  <button class="settings-tab active" data-stab="ai">AI Settings</button>
   <button class="settings-tab" data-stab="users">Users</button>
   <button class="settings-tab" data-stab="companies">Companies</button>
   <button class="settings-tab" data-stab="storage">Storage</button>
 </div>
 
-<div id="stab-templates" class="settings-tab-content active">
-  <div class="settings-card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--spacing-md)"><h3>Templates</h3><button class="btn btn-primary btn-sm" onclick="openTplModal()">New Template</button></div>
-    <div id="templatesList"></div>
-  </div>
-</div>
-
-<div id="stab-ai" class="settings-tab-content">
+<div id="stab-ai" class="settings-tab-content active">
   <div class="settings-card">
     <h3>Gemini Configuration</h3>
     <div class="form-group"><label>Model</label>
@@ -130,50 +122,11 @@
   </form>
 </div></div>
 
-<div class="drawer-overlay" id="tplModalOverlay"><div class="drawer">
-  <button class="modal-close" onclick="closeTplModal()">×</button>
-  <h3 id="tplModalTitle">New Template</h3>
-  <form id="tplForm" onsubmit="event.preventDefault();saveTemplateHandler()" style="margin-top:var(--spacing-md)">
-    <input type="hidden" id="tplEditId">
-    <div class="form-group"><label>Template Name</label><input type="text" id="newTplName" placeholder="e.g. Landing Invoices" required></div>
-      <div class="form-group"><label>Schema (JSON)</label><textarea id="newTplSchema" rows="6" placeholder='[{"name":"field","type":"string","description":"..."}]'></textarea></div>
-      <div class="form-group"><label>Keep if (rows must contain one of these words)</label><div class="chip-box" id="keepIfChips" data-placeholder="Type a word and press Enter"></div></div>
-      <div class="form-group"><label>Drop if (rows containing any of these words are removed)</label><div class="chip-box" id="dropIfChips" data-placeholder="Type a word and press Enter"></div></div>
-      <div class="form-group"><label>Auto-Detect Keywords</label><input type="text" id="newTplKeywords" placeholder="e.g. landing, parking, take off, tons, aircraft registration"></div>
-      <div class="form-group"><label>Domain</label><input type="text" id="newTplDomain" placeholder="e.g. aviation, medical, generic" list="domainOptions"><datalist id="domainOptions"></datalist></div>
-      <div class="form-group">
-        <label>Date Format <span style="font-weight:400;color:var(--steel)">(applied to all date values in the schema)</span></label>
-        <select id="newTplDateFormat" onchange="onTplDateFormatChange()">
-          <option value="">Default (keep document format)</option>
-          <option value="YYYY-MM-DD">YYYY-MM-DD (2026-08-08)</option>
-          <option value="DD/MM/YYYY">DD/MM/YYYY (08/08/2026)</option>
-          <option value="MM/DD/YYYY">MM/DD/YYYY (08/08/2026)</option>
-          <option value="DD-MM-YYYY">DD-MM-YYYY (08-08-2026)</option>
-          <option value="MM-DD-YYYY">MM-DD-YYYY (08-08-2026)</option>
-          <option value="DD.MM.YYYY">DD.MM.YYYY (08.08.2026)</option>
-          <option value="YYYY/MM/DD">YYYY/MM/DD (2026/08/08)</option>
-          <option value="DD Mon YYYY">DD Mon YYYY (08 Aug 2026)</option>
-          <option value="Mon DD, YYYY">Mon DD, YYYY (Aug 8, 2026)</option>
-          <option value="DD MMMM YYYY">DD MMMM YYYY (08 August 2026)</option>
-          <option value="MMMM DD, YYYY">MMMM DD, YYYY (August 8, 2026)</option>
-          <option value="DD-MM-YY">DD-MM-YY (08-08-26)</option>
-          <option value="MM/DD/YY">MM/DD/YY (08/08/26)</option>
-          <option value="__other__">Other (custom)...</option>
-        </select>
-        <input type="text" id="newTplDateFormatCustom" placeholder="e.g. DD MMM YYYY" style="display:none;margin-top:6px">
-        <div style="font-size:11px;color:var(--steel);margin-top:6px">Note: this format will be applied to every date value in the schema (invoice dates, due dates, flight dates, etc.).</div>
-      </div>
-      <div class="form-group"><label><input type="checkbox" id="newTplVerify" style="width:auto;display:inline-block;margin-right:6px">Verify coverage (check record counts, catch missed rows)</label></div>
-      <div class="form-group"><label><input type="checkbox" id="newTplDropSummary" style="width:auto;display:inline-block;margin-right:6px">Drop unidentified summary rows (invoice totals printed as line items)</label></div>
-    <button type="submit" class="btn btn-primary" id="tplSaveBtn">Save Template</button>
-  </form>
-</div></div>
-
 <script>
 const currentUser = JSON.parse(localStorage.getItem('neopxl_user') || '{}');
 
 // Tab switching
-document.querySelectorAll('.settings-tab').forEach(t=>{t.addEventListener('click',()=>{document.querySelectorAll('.settings-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.settings-tab-content').forEach(x=>x.classList.remove('active'));t.classList.add('active');document.getElementById('stab-'+t.dataset.stab).classList.add('active');if(t.dataset.stab==='users')loadUsers();if(t.dataset.stab==='companies')loadCompanies();if(t.dataset.stab==='templates')loadTemplateList();if(t.dataset.stab==='storage')loadStorageSettings();if(t.dataset.stab==='ai')loadAiSettings()})});
+document.querySelectorAll('.settings-tab').forEach(t=>{t.addEventListener('click',()=>{document.querySelectorAll('.settings-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.settings-tab-content').forEach(x=>x.classList.remove('active'));t.classList.add('active');document.getElementById('stab-'+t.dataset.stab).classList.add('active');if(t.dataset.stab==='users')loadUsers();if(t.dataset.stab==='companies')loadCompanies();if(t.dataset.stab==='storage')loadStorageSettings();if(t.dataset.stab==='ai')loadAiSettings()})});
 
 // AI Settings
 async function loadAiSettings(){const r=await apiFetch('/api/settings').then(d=>d.json()).catch(()=>({}));document.getElementById('settingModel').value=r.model||'gemini-2.5-flash';document.getElementById('settingBasePrompt').value=r.basePrompt||'';document.getElementById('settingClassifyPrompt').value=r.classifyPrompt||'';document.getElementById('settingDomains').value=r.domains?JSON.stringify(r.domains,null,2):'';}
@@ -198,17 +151,6 @@ function closeCompanyModal(){document.getElementById('companyModalOverlay').styl
 function editCompany(id){const c = companiesCache.find(x => x.id === id); if(!c) return; document.getElementById('companyEditId').value=c.id;document.getElementById('companyName').value=c.name;document.getElementById('companyModalTitle').textContent='Edit Company';document.getElementById('companyModalOverlay').style.display='flex'}
 async function saveCompany(){const id=document.getElementById('companyEditId').value;const n=document.getElementById('companyName').value.trim();if(!n)return alert('Name required');if(id)await apiFetch('/api/companies/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})});else await apiFetch('/api/companies',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})});closeCompanyModal();loadCompanies()}
 async function deleteCompany(id){if(!confirm('Delete?'))return;await apiFetch('/api/companies/'+id,{method:'DELETE'});loadCompanies()}
-
-// Templates
-async function loadTemplateList(){const ts=await apiFetch('/api/templates').then(d=>d.json()).catch(()=>[]);document.getElementById('templatesList').innerHTML=ts.map(t=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:var(--spacing-sm) var(--spacing-md);border-bottom:1px solid var(--hairline-soft);gap:var(--spacing-md)"><div style="flex:1;min-width:0"><strong>${esc(t.name)}</strong><div style="font-size:11px;color:var(--steel)">${esc(t.id)} · ${t.schema?'Has schema':'No schema'}${t.filter?' + filter':''}${t.dateFormat?' + dates: '+esc(t.dateFormat):''}${t.keywords?' · \''+esc(t.keywords.split(',')[0])+'...\'':''}</div></div><button class="btn btn-secondary btn-sm" onclick="editTpl('${esc(t.id)}')">Edit</button><button class="btn btn-danger btn-sm" onclick="deleteTpl('${esc(t.id)}')">Delete</button></div>`).join('')}
-function onTplDateFormatChange(){const c=document.getElementById('newTplDateFormatCustom');c.style.display=document.getElementById('newTplDateFormat').value==='__other__'?'block':'none'}
-function getTplDateFormat(){const sel=document.getElementById('newTplDateFormat');const val=sel.value;if(val==='__other__')return document.getElementById('newTplDateFormatCustom').value.trim()||'';return val}
-function setTplDateFormat(fmt){const sel=document.getElementById('newTplDateFormat');const custom=document.getElementById('newTplDateFormatCustom');const known=[...sel.options].some(o=>o.value===fmt);if(fmt&&!known){sel.value='__other__';custom.value=fmt;custom.style.display='block'}else{sel.value=fmt||'';custom.value='';custom.style.display='none'}}
-function openTplModal(){document.getElementById('tplEditId').value='';document.getElementById('newTplName').value='';document.getElementById('newTplSchema').value='';keepChips.set([]);dropChips.set([]);document.getElementById('newTplKeywords').value='';document.getElementById('newTplDomain').value='';setTplDateFormat('');document.getElementById('newTplVerify').checked=false;document.getElementById('newTplDropSummary').checked=false;document.getElementById('tplSaveBtn').textContent='Save Template';document.getElementById('tplModalTitle').textContent='New Template';document.getElementById('tplModalOverlay').classList.add('open')}
-function closeTplModal(){document.getElementById('tplModalOverlay').classList.remove('open')}
-async function editTpl(id){const ts=await apiFetch('/api/templates').then(d=>d.json()).catch(()=>[]);const t=ts.find(x=>x.id===id);if(!t)return;document.getElementById('tplEditId').value=t.id;document.getElementById('newTplName').value=t.name;document.getElementById('newTplSchema').value=t.schema||'';const fc=filterToChips(t.filter);keepChips.set(fc.keep);dropChips.set(fc.drop);document.getElementById('newTplKeywords').value=t.keywords||'';document.getElementById('newTplDomain').value=t.domain||'';setTplDateFormat(t.dateFormat||'');document.getElementById('newTplVerify').checked=!!t.verifyCoverage;document.getElementById('newTplDropSummary').checked=!!t.dropSummaryRows;document.getElementById('tplSaveBtn').textContent='Update Template';document.getElementById('tplModalTitle').textContent='Edit Template';document.getElementById('tplModalOverlay').classList.add('open')}
-async function saveTemplateHandler(){const id=document.getElementById('tplEditId').value;const n=document.getElementById('newTplName').value.trim();const s=document.getElementById('newTplSchema').value.trim();const f=chipsToFilter(keepChips.get(),dropChips.get());const kw=document.getElementById('newTplKeywords').value.trim();const dm=document.getElementById('newTplDomain').value.trim();const df=getTplDateFormat();const vc=document.getElementById('newTplVerify').checked;const dsr=document.getElementById('newTplDropSummary').checked;if(!n)return alert('Name required');const body=JSON.stringify({name:n,schema:s,filter:f,keywords:kw,domain:dm,dateFormat:df,verifyCoverage:vc,dropSummaryRows:dsr});if(id)await apiFetch('/api/templates/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body});else await apiFetch('/api/templates',{method:'POST',headers:{'Content-Type':'application/json'},body});closeTplModal();loadTemplateList()}
-async function deleteTpl(id){if(!confirm('Delete?'))return;await apiFetch('/api/templates/'+id,{method:'DELETE'});loadTemplateList()}
 
 // Storage
 const STORAGE_ICONS = {
@@ -252,9 +194,6 @@ async function deleteStorage(id){if(!confirm('Delete this connector?'))return;aw
 
 // Modal close handlers
 ['userModalOverlay','companyModalOverlay','storageModalOverlay'].forEach(id=>document.getElementById(id).addEventListener('click',e=>{if(e.target===e.currentTarget){document.getElementById(id).style.display='none'}}));
-document.getElementById('tplModalOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeTplModal()});
 
-loadAiSettings();loadUsers();loadCompanies();loadTemplateList();
-const keepChips = initChipInput('keepIfChips', []);
-const dropChips = initChipInput('dropIfChips', []);
+loadAiSettings();loadUsers();loadCompanies();
 </script>
