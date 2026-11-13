@@ -1,5 +1,6 @@
 import pg from 'pg';
 import 'dotenv/config';
+import { fullPermissions } from './permissions.mjs';
 
 const { Pool } = pg;
 
@@ -31,6 +32,15 @@ CREATE TABLE IF NOT EXISTS users (
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS role_id TEXT;
+
+CREATE TABLE IF NOT EXISTS roles (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  permissions JSONB NOT NULL DEFAULT '{}'::jsonb,
+  is_admin BOOLEAN NOT NULL DEFAULT false,
+  created_at BIGINT
+);
 
 CREATE TABLE IF NOT EXISTS api_keys (
   id TEXT PRIMARY KEY,
@@ -122,6 +132,27 @@ export async function ensureDatabase() {
 export async function initDb() {
   await ensureDatabase();
   await pool.query(SCHEMA);
+  await seedRoles();
+}
+
+async function seedRoles() {
+  const now = Date.now();
+  // Built-in admin role (immutable, full access).
+  await pool.query(
+    `INSERT INTO roles (id, name, permissions, is_admin, created_at)
+     VALUES ($1, $2, $3::jsonb, true, $4)
+     ON CONFLICT (id) DO NOTHING`,
+    ['admin', 'Admin', JSON.stringify({}), now]
+  );
+  // Default standard role: everything except Settings (which is admin-only).
+  await pool.query(
+    `INSERT INTO roles (id, name, permissions, is_admin, created_at)
+     VALUES ($1, $2, $3::jsonb, false, $4)
+     ON CONFLICT (id) DO NOTHING`,
+    ['user', 'Standard User', JSON.stringify(fullPermissions()), now]
+  );
+  // Preserve existing non-admin users' access by assigning them the standard role.
+  await pool.query(`UPDATE users SET role_id = 'user' WHERE role <> 1 AND role_id IS NULL`);
 }
 
 export async function closeDb() {

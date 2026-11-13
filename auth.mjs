@@ -22,7 +22,7 @@ export async function comparePassword(password, hash) {
 export function signToken(user) {
   if (!JWT_SECRET) throw new Error('JWT_SECRET is not configured');
   return jwt.sign(
-    { id: user.id, email: user.email, role: user.role, company_id: user.company_id, company_name: user.company_name, first_name: user.first_name || null, last_name: user.last_name || null },
+    { id: user.id, email: user.email, role: user.role, role_id: user.role_id || null, company_id: user.company_id, company_name: user.company_name, first_name: user.first_name || null, last_name: user.last_name || null },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRY }
   );

@@ -146,6 +146,19 @@ const pageToken = localStorage.getItem('neopxl_token') || '';
 const SPINNER_SVG = '<svg class="loader" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg" style="overflow: visible;"><circle class="loader-track" cx="12" cy="12" r="10"></circle><circle class="loader-circle" cx="12" cy="12" r="10"></circle></svg>';
 let taskJob = null, taskData = null, selectedFile = null, taskRendered = false, pollTimer = null;
 
+function applyTaskDetailPerms() {
+  const p = window.PERMS || {};
+  const del = document.getElementById('deleteTaskBtn');
+  if (del) del.style.display = p['tasks.delete'] ? '' : 'none';
+  if (taskRendered) {
+    const job = taskJob || {};
+    const canRerun = (job.storedFiles && job.storedFiles.length > 0) && job.templateName !== 'schema-generation';
+    document.getElementById('rerunTaskBtn').style.display = (canRerun && p['tasks.rerun']) ? '' : 'none';
+  }
+}
+if (window.PERMS && Object.keys(window.PERMS).length) applyTaskDetailPerms();
+else window.addEventListener('permsready', applyTaskDetailPerms);
+
 function updateTaskStatusBadge(status, statusMessage) {
   const st = document.getElementById('taskStatus');
   const label = status === 'in-progress' ? SPINNER_SVG : ((status !== 'done' && status !== 'error' && statusMessage ? statusMessage : status)).toUpperCase();
@@ -182,9 +195,9 @@ async function loadTask() {
   taskRendered = true;
   document.getElementById('taskTitle').textContent = (job.fileName || 'Task ' + taskId).slice(0, 60);
   updateTaskStatusBadge(status, job.statusMessage);
-  document.getElementById('deleteTaskBtn').style.display = '';
+  applyTaskDetailPerms();
   const canRerun = (job.storedFiles && job.storedFiles.length > 0) && job.templateName !== 'schema-generation';
-  document.getElementById('rerunTaskBtn').style.display = canRerun ? '' : 'none';
+  document.getElementById('rerunTaskBtn').style.display = (canRerun && (window.PERMS || {}).['tasks.rerun']) ? '' : 'none';
 
   document.getElementById('statPages').textContent = job.pages || '—';
   document.getElementById('statTime').textContent = fmtDuration(job.timing?.total);

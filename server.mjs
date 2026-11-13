@@ -8,7 +8,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 import { tmpdir } from 'os';
 import crypto from 'crypto';
 import pLimit from 'p-limit';
-import { loadStore, addJob, updateJob, getStats, getJobs, getJobCards, getJobCounts, getTemplates, addTemplate, updateTemplate, deleteTemplate, getUsers, getUserByEmail, addUser, updateUser, deleteUser, getCompanies, addCompany, updateCompany, deleteCompany, createApiKey, getUserApiKeys, revokeApiKey, getApiKeyUser, deleteJob, markOrphanedJobsAsError, getJobResultData, getSetting, setSetting } from './store.mjs';
+import { loadStore, addJob, updateJob, getStats, getJobs, getJobCards, getJobCounts, getTemplates, addTemplate, updateTemplate, deleteTemplate, getUsers, getUserByEmail, addUser, updateUser, deleteUser, getCompanies, addCompany, updateCompany, deleteCompany, createApiKey, getUserApiKeys, revokeApiKey, getApiKeyUser, deleteJob, markOrphanedJobsAsError, getJobResultData, getSetting, setSetting, getRoles, getRole, addRole, updateRole, deleteRole, getUserPermissions, getUserAuth } from './store.mjs';
+import { PERMISSION_KEYS, fullPermissions, permissionLabel } from './permissions.mjs';
 import { hashPassword, comparePassword, signToken, verifyToken, authGuard } from './auth.mjs';
 import 'dotenv/config';
 import { documind } from 'core';
@@ -95,6 +96,50 @@ async function loadAiConfig() {
 // setting first, then the MODEL env var, then the default.
 function getModel() {
   return _aiModel || process.env.MODEL || 'gemini-2.5-flash';
+}
+
+/* ------------------------------------------------------------------ */
+/* Permissions                                                         */
+/* ------------------------------------------------------------------ */
+
+function isAdmin(user) {
+  return !!(user && user.role === 1);
+}
+
+/**
+ * Authenticate and require a permission. Returns the user on success, or null
+ * after writing a 401/403 response. Admin bypasses all checks.
+ */
+async function authWithPerm(req, res, perm) {
+  const user = await authGuard(req, res);
+  if (!user) return null;
+  if (isAdmin(user)) return user;
+  // Refresh role/role_id so role reassignment takes effect without re-login,
+  // but keep the caller's extra fields (e.g. API key name).
+  const fresh = (user.id && await getUserAuth(user.id)) || null;
+  const effective = fresh ? { ...user, role: fresh.role, role_id: fresh.role_id } : user;
+  const perms = await getUserPermissions(effective);
+  if (perm && !perms[perm]) {
+    sendJSON(res, 403, { error: 'Forbidden' });
+    return null;
+  }
+  return effective;
+}
+
+async function publicUser(user) {
+  if (!user) return null;
+  const fresh = (user.id && await getUserAuth(user.id)) || null;
+  const eff = fresh ? { ...user, role: fresh.role, role_id: fresh.role_id, first_name: fresh.first_name ?? user.first_name, last_name: fresh.last_name ?? user.last_name } : user;
+  const perms = await getUserPermissions(eff);
+  let roleName = null;
+  if (isAdmin(eff)) roleName = 'Admin';
+  else if (eff.role_id) { const r = await getRole(eff.role_id); roleName = r?.name || null; }
+  return {
+    id: eff.id, email: eff.email, role: eff.role, role_id: eff.role_id || null,
+    role_name: roleName, permissions: perms,
+    company_id: eff.company_id, company_name: eff.company_name,
+    first_name: eff.first_name || null, last_name: eff.last_name || null,
+  };
 }
 
 const MIME = {
@@ -1433,13 +1478,13 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === '/api/stats' && req.method === 'GET') {
-    const user = await authGuard(req, res);
+    const user = await authWithPerm(req, res, 'dashboard');
     if (!user) return;
     return sendJSON(res, 200, await getStats(user.id, user.role === 1));
   }
 
   if (url.pathname === '/api/stats/templates' && req.method === 'GET') {
-    const user = await authGuard(req, res);
+    const user = await authWithPerm(req, res, 'dashboard');
     if (!user) return;
     const jobs = (await getJobs(user.id, user.role === 1)).filter(j => j.status === 'done');
     const tpls = await getTemplates();
@@ -1465,7 +1510,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === '/api/tasks' && req.method === 'GET') {
-    const user = await authGuard(req, res);
+    const user = await authWithPerm(req, res, 'tasks.view');
     if (!user) return;
     const limit = parseInt(url.searchParams.get('limit')) || 0;
     const offset = parseInt(url.searchParams.get('offset')) || 0;
@@ -1501,6 +1546,14 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify({ error: 'Unauthorized' }));
       return;
     }
+    if (!isAdmin(user)) {
+      const perms = await getUserPermissions(user);
+      if (!perms['tasks.view']) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Forbidden' }));
+        return;
+      }
+    }
     const jobId = url.pathname.split('/')[3];
     const job = (await getJobs(user.id, user.role === 1)).find(j => j.id === jobId);
     if (!job) return sendJSON(res, 404, { error: 'Task not found' });
@@ -1526,7 +1579,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname.startsWith('/api/tasks/') && req.method === 'GET') {
-    const user = await authGuard(req, res);
+    const user = await authWithPerm(req, res, 'tasks.view');
     if (!user) return;
     const parts = url.pathname.split('/');
     const last = parts[parts.length - 1];
@@ -1552,7 +1605,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname.startsWith('/api/tasks/') && req.method === 'DELETE') {
-    const user = await authGuard(req, res);
+    const user = await authWithPerm(req, res, 'tasks.delete');
     if (!user) return;
     const taskId = url.pathname.split('/').pop();
     if (!taskId) return sendJSON(res, 400, { error: 'Missing task id' });
@@ -1569,7 +1622,7 @@ const server = createServer(async (req, res) => {
   if (url.pathname.startsWith('/api/tasks/') && req.method === 'POST') {
     const rerunMatch = url.pathname.match(/^\/api\/tasks\/([^/]+)\/rerun$/);
     if (!rerunMatch) return sendJSON(res, 404, { error: 'Not found' });
-    const user = await authGuard(req, res);
+    const user = await authWithPerm(req, res, 'tasks.rerun');
     if (!user) return;
     const taskId = rerunMatch[1];
     const job = (await getJobs(user.id, user.role === 1)).find(j => j.id === taskId);
@@ -1617,7 +1670,7 @@ const server = createServer(async (req, res) => {
         return sendJSON(res, 401, { error: 'Invalid email or password' });
       }
       const token = signToken(user);
-      sendJSON(res, 200, { token, user: { id: user.id, email: user.email, role: user.role, company_id: user.company_id, company_name: user.company_name, first_name: user.first_name || null, last_name: user.last_name || null } });
+      sendJSON(res, 200, { token, user: await publicUser(user) });
     } catch (e) {
       sendJSON(res, 400, { error: e.message });
     }
@@ -1627,7 +1680,7 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/api/me' && req.method === 'GET') {
     const user = await authGuard(req, res);
     if (!user) return;
-    return sendJSON(res, 200, { id: user.id, email: user.email, role: user.role, company_id: user.company_id, company_name: user.company_name, first_name: user.first_name || null, last_name: user.last_name || null });
+    return sendJSON(res, 200, await publicUser(user));
   }
 
   if (url.pathname === '/api/settings' && req.method === 'GET') {
@@ -1765,12 +1818,12 @@ const server = createServer(async (req, res) => {
     if (!authUser || authUser.role !== 1) return sendJSON(res, 403, { error: 'Admin only' });
     const body = await readBodyText(req, 1024 * 1024);
     try {
-      const { email, password, role, company_id, first_name, last_name } = JSON.parse(body);
+      const { email, password, role, role_id, company_id, first_name, last_name } = JSON.parse(body);
       const company = (await getCompanies()).find(c => c.id === company_id);
       const hash = await hashPassword(password);
-      const u = await addUser({ email, password_hash: hash, role: role || 2, first_name: first_name || null, last_name: last_name || null, company_id: company_id || null, company_name: company?.name || '' });
+      const u = await addUser({ email, password_hash: hash, role: role || 2, role_id: role_id || null, first_name: first_name || null, last_name: last_name || null, company_id: company_id || null, company_name: company?.name || '' });
       if (!u) return sendJSON(res, 400, { error: 'Email already exists' });
-      sendJSON(res, 200, { id: u.id, email: u.email, role: u.role, first_name: u.first_name, last_name: u.last_name, company_id: u.company_id, company_name: u.company_name });
+      sendJSON(res, 200, { id: u.id, email: u.email, role: u.role, role_id: u.role_id, first_name: u.first_name, last_name: u.last_name, company_id: u.company_id, company_name: u.company_name });
     } catch (e) { sendJSON(res, 400, { error: e.message }); }
     return;
   }
@@ -1784,12 +1837,48 @@ const server = createServer(async (req, res) => {
       const data = JSON.parse(body); const updates = {};
       if (data.email) updates.email = data.email;
       if (data.role) updates.role = data.role;
+      if (data.role_id !== undefined) updates.role_id = data.role_id || null;
       if (data.first_name !== undefined) updates.first_name = data.first_name;
       if (data.last_name !== undefined) updates.last_name = data.last_name;
       if (data.password) updates.password_hash = await hashPassword(data.password);
       if (data.company_id !== undefined) { updates.company_id = data.company_id || null; const company = (await getCompanies()).find(c => c.id === data.company_id); updates.company_name = company?.name || ''; }
       const u = await updateUser(id, updates);
       sendJSON(res, u ? 200 : 404, u ? { id: u.id, email: u.email, role: u.role, first_name: u.first_name, last_name: u.last_name, company_id: u.company_id, company_name: u.company_name } : { error: 'Not found' });
+    } catch (e) { sendJSON(res, 400, { error: e.message }); }
+    return;
+  }
+
+  if (url.pathname === '/api/roles' && req.method === 'GET') {
+    const authUser = await authGuard(req, res);
+    if (!authUser || authUser.role !== 1) return sendJSON(res, 403, { error: 'Admin only' });
+    return sendJSON(res, 200, { keys: PERMISSION_KEYS, roles: await getRoles() });
+  }
+
+  if (url.pathname === '/api/roles' && req.method === 'POST') {
+    const authUser = await authGuard(req, res);
+    if (!authUser || authUser.role !== 1) return sendJSON(res, 403, { error: 'Admin only' });
+    const body = await readBodyText(req, 1024 * 1024);
+    try {
+      const data = JSON.parse(body);
+      const role = await addRole({ name: data.name, permissions: data.permissions || {} });
+      sendJSON(res, 200, role);
+    } catch (e) { sendJSON(res, 400, { error: e.message }); }
+    return;
+  }
+
+  if (url.pathname.startsWith('/api/roles/') && (req.method === 'PUT' || req.method === 'DELETE')) {
+    const authUser = await authGuard(req, res);
+    if (!authUser || authUser.role !== 1) return sendJSON(res, 403, { error: 'Admin only' });
+    const id = url.pathname.split('/').pop();
+    if (req.method === 'DELETE') {
+      const ok = await deleteRole(id);
+      return sendJSON(res, ok ? 200 : 404, ok ? { success: true } : { error: 'Not found' });
+    }
+    const body = await readBodyText(req, 1024 * 1024);
+    try {
+      const data = JSON.parse(body);
+      const role = await updateRole(id, { name: data.name, permissions: data.permissions || {} });
+      sendJSON(res, role ? 200 : 404, role || { error: 'Not found' });
     } catch (e) { sendJSON(res, 400, { error: e.message }); }
     return;
   }
@@ -1844,7 +1933,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === '/extract' && req.method === 'POST') {
-    const user = await authGuard(req, res);
+    const user = await authWithPerm(req, res, 'tasks.create');
     if (!user) return;
     try {
       const boundary = getBoundary(req.headers['content-type']);
@@ -2379,7 +2468,7 @@ function checkAuth(req, res) {
 
   if (url.pathname === '/api/extract' && req.method === 'POST') {
     try {
-      const apiUser = await authGuard(req, res);
+      const apiUser = await authWithPerm(req, res, 'tasks.create');
       if (!apiUser) return;
 
       const isAsync = url.searchParams.get('mode') === 'async';
@@ -2481,7 +2570,7 @@ function checkAuth(req, res) {
   }
 
   if (url.pathname === '/api/classify' && req.method === 'POST') {
-    const apiUser = await authGuard(req, res);
+    const apiUser = await authWithPerm(req, res, 'tasks.create');
     if (!apiUser) return;
     const boundary = getBoundary(req.headers['content-type']);
     if (!boundary) return sendJSON(res, 400, { error: 'No boundary' });
@@ -2588,12 +2677,12 @@ function checkAuth(req, res) {
   }
 
   if (url.pathname === '/api/templates' && req.method === 'GET') {
-    if (!await authGuard(req, res)) return;
+    if (!await authWithPerm(req, res, 'templates.view')) return;
     return sendJSON(res, 200, await getTemplates());
   }
 
   if (url.pathname === '/api/templates' && req.method === 'POST') {
-    if (!await authGuard(req, res)) return;
+    if (!await authWithPerm(req, res, 'templates.create')) return;
     const body = await readBodyText(req, 5 * 1024 * 1024);
     try {
       const data = JSON.parse(body);
@@ -2606,7 +2695,8 @@ function checkAuth(req, res) {
   }
 
   if (url.pathname.startsWith('/api/templates/') && (req.method === 'PUT' || req.method === 'DELETE')) {
-    if (!await authGuard(req, res)) return;
+    const perm = req.method === 'DELETE' ? 'templates.delete' : 'templates.edit';
+    if (!await authWithPerm(req, res, perm)) return;
     const id = url.pathname.split('/').pop();
     if (req.method === 'DELETE') {
       const ok = await deleteTemplate(id);
@@ -2624,7 +2714,7 @@ function checkAuth(req, res) {
   }
 
   if (url.pathname === '/api/schema/generate' && req.method === 'POST') {
-    const apiUser = await authGuard(req, res);
+    const apiUser = await authWithPerm(req, res, 'schemas');
     if (!apiUser) return;
 
     const boundary = getBoundary(req.headers['content-type']);
@@ -2716,7 +2806,7 @@ function checkAuth(req, res) {
   }
 
   if (url.pathname.startsWith('/api/schema/result/') && req.method === 'GET') {
-    const apiUser = await authGuard(req, res);
+    const apiUser = await authWithPerm(req, res, 'schemas');
     if (!apiUser) return;
     const jobId = url.pathname.split('/').pop();
     const job = schemaJobs.get(jobId);

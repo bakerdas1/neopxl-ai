@@ -28,7 +28,7 @@
 .ts-date-input:focus{outline:none;border-color:var(--brand-green-dark)}</style>
 <div class="topbar">
   <h1>Tasks</h1>
-  <button class="btn btn-primary" onclick="openExtractionModal()">
+  <button class="btn btn-primary" id="newExtractionBtn" onclick="openExtractionModal()">
     <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
     New Extraction
   </button>
@@ -92,7 +92,7 @@
       <div class="form-group">
         <label>Template</label>
         <select id="templateSelect" onchange="onTemplateChange()"><option value="">None (raw markdown)</option></select>
-        <a href="javascript:void(0)" onclick="openTplModal()" style="display:block;margin-top:6px;font-size:12px;color:var(--brand-green-dark);text-decoration:none">+ Add new template</a>
+        <a href="javascript:void(0)" id="addTplLink" onclick="openTplModal()" style="display:block;margin-top:6px;font-size:12px;color:var(--brand-green-dark);text-decoration:none">+ Add new template</a>
       </div>
       <div class="form-group">
         <label>Pages</label>
@@ -634,4 +634,17 @@ const tplDropChips = initChipInput('tplDropIfChips', []);
     });
   }
 })();
+
+// Gate task/schema/template creation controls once permissions load.
+function applyTaskPerms(){
+  const p = window.PERMS || {};
+  const nb = document.getElementById('newExtractionBtn');
+  if (nb && !p['tasks.create']) nb.style.display = 'none';
+  const at = document.getElementById('addTplLink');
+  if (at && !p['templates.create']) at.style.display = 'none';
+  const st = document.getElementById('tabSchema');
+  if (st && !p.schemas) st.style.display = 'none';
+}
+if (window.PERMS && Object.keys(window.PERMS).length) applyTaskPerms();
+else window.addEventListener('permsready', applyTaskPerms);
 </script>

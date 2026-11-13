@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { pool } from './db.mjs';
+import { fullPermissions } from './permissions.mjs';
 
 const JSONB_COLS = new Set(['timing', 'tokens', 'cost', 'schema', 'filter', 'stored_files']);
 
@@ -244,7 +245,8 @@ export async function getStats(userId, isAdmin) {
 }
 
 export async function getUsers() {
-  const r = await pool.query('SELECT id, email, role, first_name, last_name, company_id, company_name, created_at FROM users');
+  const r = await pool.query(`SELECT u.id, u.email, u.role, u.role_id, u.first_name, u.last_name, u.company_id, u.company_name, u.created_at, r.name AS role_name
+    FROM users u LEFT JOIN roles r ON r.id = u.role_id ORDER BY u.created_at`);
   return r.rows;
 }
 
@@ -257,10 +259,10 @@ export async function addUser(user) {
   const exists = await pool.query('SELECT 1 FROM users WHERE email = $1', [user.email]);
   if (exists.rowCount) return null;
   const id = crypto.randomBytes(12).toString('hex');
-  const u = { id, email: user.email, password_hash: user.password_hash, role: user.role || 2, first_name: user.first_name || null, last_name: user.last_name || null, company_id: user.company_id || null, company_name: user.company_name || '', created_at: Date.now() };
+  const u = { id, email: user.email, password_hash: user.password_hash, role: user.role || 2, role_id: user.role_id || null, first_name: user.first_name || null, last_name: user.last_name || null, company_id: user.company_id || null, company_name: user.company_name || '', created_at: Date.now() };
   const r = await pool.query(
-    'INSERT INTO users (id, email, password_hash, role, first_name, last_name, company_id, company_name, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
-    [u.id, u.email, u.password_hash, u.role, u.first_name, u.last_name, u.company_id, u.company_name, u.created_at]
+    'INSERT INTO users (id, email, password_hash, role, role_id, first_name, last_name, company_id, company_name, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',
+    [u.id, u.email, u.password_hash, u.role, u.role_id, u.first_name, u.last_name, u.company_id, u.company_name, u.created_at]
   );
   return r.rows[0];
 }
@@ -268,7 +270,7 @@ export async function addUser(user) {
 export async function updateUser(id, updates) {
   const cols = [];
   const vals = [];
-  const map = { email: 'email', password_hash: 'password_hash', role: 'role', first_name: 'first_name', last_name: 'last_name', company_id: 'company_id', company_name: 'company_name' };
+  const map = { email: 'email', password_hash: 'password_hash', role: 'role', role_id: 'role_id', first_name: 'first_name', last_name: 'last_name', company_id: 'company_id', company_name: 'company_name' };
   for (const [k, col] of Object.entries(map)) {
     if (updates[k] !== undefined) { cols.push(`"${col}" = $${vals.length + 1}`); vals.push(updates[k]); }
   }
@@ -436,12 +438,67 @@ export async function getApiKeyUser(key) {
   const u = (await pool.query('SELECT * FROM users WHERE id = $1', [k.user_id])).rows[0];
   if (!u) return null;
   const company = (await pool.query('SELECT * FROM companies WHERE id = $1', [u.company_id])).rows[0];
-  return { id: u.id, email: u.email, role: u.role, company_id: u.company_id, company_name: company?.name || '', _apiKeyId: k.id, _apiKeyName: k.name };
+  return { id: u.id, email: u.email, role: u.role, role_id: u.role_id || null, company_id: u.company_id, company_name: company?.name || '', _apiKeyId: k.id, _apiKeyName: k.name };
 }
 
 export async function revokeApiKey(id, userId) {
   const r = await pool.query('DELETE FROM api_keys WHERE id = $1 AND user_id = $2 RETURNING id', [id, userId]);
   return r.rowCount > 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Roles & permissions                                                 */
+/* ------------------------------------------------------------------ */
+
+export async function getRoles() {
+  const r = await pool.query('SELECT id, name, permissions, is_admin, created_at FROM roles ORDER BY is_admin DESC, created_at');
+  return r.rows;
+}
+
+export async function getRole(id) {
+  const r = await pool.query('SELECT id, name, permissions, is_admin, created_at FROM roles WHERE id = $1', [id]);
+  return r.rows[0] || null;
+}
+
+export async function addRole(role) {
+  const id = (role.id || 'role_' + crypto.randomBytes(6).toString('hex'));
+  const r = await pool.query(
+    'INSERT INTO roles (id, name, permissions, is_admin, created_at) VALUES ($1, $2, $3::jsonb, false, $4) RETURNING *',
+    [id, role.name, JSON.stringify(role.permissions || {}), Date.now()]
+  );
+  return r.rows[0];
+}
+
+export async function updateRole(id, updates) {
+  const r = await pool.query(
+    `UPDATE roles SET name = $1, permissions = $2::jsonb WHERE id = $3 AND is_admin = false RETURNING *`,
+    [updates.name, JSON.stringify(updates.permissions || {}), id]
+  );
+  return r.rows[0] || null;
+}
+
+export async function deleteRole(id) {
+  // Never delete the admin role; unassign any users pointing at this role.
+  const r = await pool.query(`DELETE FROM roles WHERE id = $1 AND is_admin = false RETURNING id`, [id]);
+  if (r.rowCount) await pool.query(`UPDATE users SET role_id = NULL WHERE role_id = $1`, [id]);
+  return r.rowCount > 0;
+}
+
+/**
+ * Effective permissions for a user: admin gets everything; otherwise the
+ * permissions of the assigned role (empty object when no role).
+ */
+export async function getUserPermissions(user) {
+  if (!user) return {};
+  if (user.role === 1) return fullPermissions();
+  const role = user.role_id ? await getRole(user.role_id) : null;
+  return (role && role.permissions) || {};
+}
+
+/** Fetch the current role/role_id for a user (fresh from DB). */
+export async function getUserAuth(id) {
+  const r = await pool.query('SELECT id, email, role, role_id, company_id, company_name, first_name, last_name FROM users WHERE id = $1', [id]);
+  return r.rows[0] || null;
 }
 
 export async function getSetting(key) {
