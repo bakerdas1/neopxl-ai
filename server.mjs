@@ -71,21 +71,30 @@ Return ONLY the template id (e.g., np_001) or the word Unknown.`;
 
 // Runtime AI configuration cache (base prompt, classify prompt, domains).
 let _aiConfig = null;
+let _aiModel = null;
 function getAiConfig() {
   return _aiConfig || { basePrompt: BASE_EXTRACTION_PROMPT, classifyPrompt: DEFAULT_CLASSIFY_PROMPT, domains: DEFAULT_DOMAINS };
 }
 async function loadAiConfig() {
-  const [base, classify, domains] = await Promise.all([
+  const [base, classify, domains, model] = await Promise.all([
     getSetting('ai.base_prompt'),
     getSetting('ai.classify_prompt'),
     getSetting('domains'),
+    getSetting('ai.model'),
   ]);
   _aiConfig = {
     basePrompt: typeof base === 'string' && base.trim() ? base : BASE_EXTRACTION_PROMPT,
     classifyPrompt: typeof classify === 'string' && classify.trim() ? classify : DEFAULT_CLASSIFY_PROMPT,
     domains: domains && typeof domains === 'object' && !Array.isArray(domains) ? domains : DEFAULT_DOMAINS,
   };
+  _aiModel = (typeof model === 'string' && model.trim()) ? model.trim() : (process.env.MODEL || 'gemini-2.5-flash');
   return _aiConfig;
+}
+
+// The single source of truth for the active Gemini model: the persisted
+// setting first, then the MODEL env var, then the default.
+function getModel() {
+  return _aiModel || process.env.MODEL || 'gemini-2.5-flash';
 }
 
 const MIME = {
@@ -1302,7 +1311,7 @@ function showError(msg) {
 }
 
 const tpls = templates.list();
-const model = process.env.MODEL || 'gemini-2.5-flash';
+const model = getModel();
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
@@ -1587,7 +1596,7 @@ const server = createServer(async (req, res) => {
     }
     if (job.additionalPrompt) fields.additional_prompt = job.additionalPrompt;
 
-    const model = process.env.MODEL || 'gemini-2.5-flash';
+    const model = getModel();
     const newJobId = crypto.randomBytes(8).toString('hex');
     const started = await startAsyncPipeline(newJobId, rerunFiles, fields, user, model);
     return sendJSON(res, 200, { jobId: newJobId, rerunOf: taskId, ...started });
@@ -1620,7 +1629,7 @@ const server = createServer(async (req, res) => {
     if (!authUser || authUser.role !== 1) return sendJSON(res, 403, { error: 'Admin only' });
     const ai = getAiConfig();
     return sendJSON(res, 200, {
-      model: process.env.MODEL || 'gemini-2.5-flash',
+      model: getModel(),
       basePrompt: ai.basePrompt,
       classifyPrompt: ai.classifyPrompt,
       domains: ai.domains,
@@ -1635,6 +1644,7 @@ const server = createServer(async (req, res) => {
       const data = JSON.parse(body);
       if (data.model) {
         process.env.MODEL = data.model;
+        await setSetting('ai.model', data.model);
       }
       if (typeof data.basePrompt === 'string') await setSetting('ai.base_prompt', data.basePrompt);
       if (typeof data.classifyPrompt === 'string') await setSetting('ai.classify_prompt', data.classifyPrompt);
@@ -2385,7 +2395,7 @@ function checkAuth(req, res) {
       }
       const uploads = uniqueFilenames(files);
 
-      const model = process.env.MODEL || 'gemini-2.5-flash';
+      const model = getModel();
 
       if (isAsync) {
         const jobId = crypto.randomBytes(8).toString('hex');
@@ -2495,7 +2505,7 @@ function checkAuth(req, res) {
     await writeFile(tPath, file.data);
 
     try {
-      const model = process.env.MODEL || 'gemini-2.5-flash';
+      const model = getModel();
       const classifyStart = Date.now();
       const coreResult = await convertDocument({ filePath: tPath, model, concurrency: 6 });
       const markdown = coreResult.pymupdfMarkdown || await generateMarkdownDocument(coreResult.pages);
@@ -2652,7 +2662,7 @@ function checkAuth(req, res) {
         }
       }
 
-      const model = fields.model || process.env.MODEL || 'gemini-2.5-flash';
+      const model = fields.model || getModel();
       const instructions = (fields.instructions || '').trim() || undefined;
 
       tmpDir = await mkdtemp(join(tmpdir(), 'documind-schema-'));
