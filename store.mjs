@@ -245,7 +245,7 @@ export async function getStats(userId, isAdmin) {
 }
 
 export async function getUsers() {
-  const r = await pool.query(`SELECT u.id, u.email, u.role, u.role_id, u.first_name, u.last_name, u.company_id, u.company_name, u.created_at, r.name AS role_name
+  const r = await pool.query(`SELECT u.id, u.email, u.role, u.role_id, u.active, u.first_name, u.last_name, u.company_id, u.company_name, u.created_at, r.name AS role_name
     FROM users u LEFT JOIN roles r ON r.id = u.role_id ORDER BY u.created_at`);
   return r.rows;
 }
@@ -282,6 +282,12 @@ export async function updateUser(id, updates) {
 export async function deleteUser(id) {
   const r = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id', [id]);
   return r.rowCount > 0;
+}
+
+/** Archive (deactivate) or reactivate a user without deleting them or their jobs. */
+export async function setUserActive(id, active) {
+  const r = await pool.query('UPDATE users SET active = $1 WHERE id = $2 RETURNING id, active', [active ? true : false, id]);
+  return r.rows[0] || null;
 }
 
 export async function deleteJob(id) {
@@ -438,7 +444,7 @@ export async function getApiKeyUser(key) {
   const u = (await pool.query('SELECT * FROM users WHERE id = $1', [k.user_id])).rows[0];
   if (!u) return null;
   const company = (await pool.query('SELECT * FROM companies WHERE id = $1', [u.company_id])).rows[0];
-  return { id: u.id, email: u.email, role: u.role, role_id: u.role_id || null, company_id: u.company_id, company_name: company?.name || '', _apiKeyId: k.id, _apiKeyName: k.name };
+  return { id: u.id, email: u.email, role: u.role, role_id: u.role_id || null, active: u.active !== false, company_id: u.company_id, company_name: company?.name || '', _apiKeyId: k.id, _apiKeyName: k.name };
 }
 
 export async function revokeApiKey(id, userId) {
@@ -497,7 +503,7 @@ export async function getUserPermissions(user) {
 
 /** Fetch the current role/role_id for a user (fresh from DB). */
 export async function getUserAuth(id) {
-  const r = await pool.query('SELECT id, email, role, role_id, company_id, company_name, first_name, last_name FROM users WHERE id = $1', [id]);
+  const r = await pool.query('SELECT id, email, role, role_id, active, company_id, company_name, first_name, last_name FROM users WHERE id = $1', [id]);
   return r.rows[0] || null;
 }
 

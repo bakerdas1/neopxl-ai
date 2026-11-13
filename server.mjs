@@ -8,7 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 import { tmpdir } from 'os';
 import crypto from 'crypto';
 import pLimit from 'p-limit';
-import { loadStore, addJob, updateJob, getStats, getJobs, getJobCards, getJobCounts, getTemplates, addTemplate, updateTemplate, deleteTemplate, getUsers, getUserByEmail, addUser, updateUser, deleteUser, getCompanies, addCompany, updateCompany, deleteCompany, createApiKey, getUserApiKeys, revokeApiKey, getApiKeyUser, deleteJob, markOrphanedJobsAsError, getJobResultData, getSetting, setSetting, getRoles, getRole, addRole, updateRole, deleteRole, getUserPermissions, getUserAuth } from './store.mjs';
+import { loadStore, addJob, updateJob, getStats, getJobs, getJobCards, getJobCounts, getTemplates, addTemplate, updateTemplate, deleteTemplate, getUsers, getUserByEmail, addUser, updateUser, deleteUser, setUserActive, getCompanies, addCompany, updateCompany, deleteCompany, createApiKey, getUserApiKeys, revokeApiKey, getApiKeyUser, deleteJob, markOrphanedJobsAsError, getJobResultData, getSetting, setSetting, getRoles, getRole, addRole, updateRole, deleteRole, getUserPermissions, getUserAuth } from './store.mjs';
 import { PERMISSION_KEYS, fullPermissions, permissionLabel } from './permissions.mjs';
 import { hashPassword, comparePassword, signToken, verifyToken, authGuard } from './auth.mjs';
 import 'dotenv/config';
@@ -114,31 +114,25 @@ async function authWithPerm(req, res, perm) {
   const user = await authGuard(req, res);
   if (!user) return null;
   if (isAdmin(user)) return user;
-  // Refresh role/role_id so role reassignment takes effect without re-login,
-  // but keep the caller's extra fields (e.g. API key name).
-  const fresh = (user.id && await getUserAuth(user.id)) || null;
-  const effective = fresh ? { ...user, role: fresh.role, role_id: fresh.role_id } : user;
-  const perms = await getUserPermissions(effective);
+  const perms = await getUserPermissions(user);
   if (perm && !perms[perm]) {
     sendJSON(res, 403, { error: 'Forbidden' });
     return null;
   }
-  return effective;
+  return user;
 }
 
 async function publicUser(user) {
   if (!user) return null;
-  const fresh = (user.id && await getUserAuth(user.id)) || null;
-  const eff = fresh ? { ...user, role: fresh.role, role_id: fresh.role_id, first_name: fresh.first_name ?? user.first_name, last_name: fresh.last_name ?? user.last_name } : user;
-  const perms = await getUserPermissions(eff);
+  const perms = await getUserPermissions(user);
   let roleName = null;
-  if (isAdmin(eff)) roleName = 'Admin';
-  else if (eff.role_id) { const r = await getRole(eff.role_id); roleName = r?.name || null; }
+  if (isAdmin(user)) roleName = 'Admin';
+  else if (user.role_id) { const r = await getRole(user.role_id); roleName = r?.name || null; }
   return {
-    id: eff.id, email: eff.email, role: eff.role, role_id: eff.role_id || null,
-    role_name: roleName, permissions: perms,
-    company_id: eff.company_id, company_name: eff.company_name,
-    first_name: eff.first_name || null, last_name: eff.last_name || null,
+    id: user.id, email: user.email, role: user.role, role_id: user.role_id || null,
+    role_name: roleName, permissions: perms, active: user.active !== false,
+    company_id: user.company_id, company_name: user.company_name,
+    first_name: user.first_name || null, last_name: user.last_name || null,
   };
 }
 
@@ -1546,6 +1540,16 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify({ error: 'Unauthorized' }));
       return;
     }
+    if (user.id) {
+      const fresh = await getUserAuth(user.id);
+      if (!fresh || fresh.active === false) {
+        res.writeHead(fresh ? 403 : 401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: fresh ? 'Account is disabled' : 'Unauthorized' }));
+        return;
+      }
+      user.role = fresh.role;
+      user.role_id = fresh.role_id;
+    }
     if (!isAdmin(user)) {
       const perms = await getUserPermissions(user);
       if (!perms['tasks.view']) {
@@ -1668,6 +1672,9 @@ const server = createServer(async (req, res) => {
       const user = await getUserByEmail(email);
       if (!user || !(await comparePassword(password, user.password_hash))) {
         return sendJSON(res, 401, { error: 'Invalid email or password' });
+      }
+      if (user.active === false) {
+        return sendJSON(res, 403, { error: 'Account is disabled' });
       }
       const token = signToken(user);
       sendJSON(res, 200, { token, user: await publicUser(user) });
@@ -1827,11 +1834,21 @@ const server = createServer(async (req, res) => {
     } catch (e) { sendJSON(res, 400, { error: e.message }); }
     return;
   }
-  if (url.pathname.startsWith('/api/users/') && (req.method === 'PUT' || req.method === 'DELETE')) {
+  if (url.pathname.match(/^\/api\/users\/[^/]+\/(archive|activate)$/) && req.method === 'POST') {
+    const authUser = await authGuard(req, res);
+    if (!authUser || authUser.role !== 1) return sendJSON(res, 403, { error: 'Admin only' });
+    const parts = url.pathname.split('/');
+    const id = parts[parts.length - 2];
+    const active = parts[parts.length - 1] === 'activate';
+    if (active && id === authUser.id) return sendJSON(res, 400, { error: 'Cannot deactivate your own account' });
+    const u = await setUserActive(id, active);
+    return sendJSON(res, u ? 200 : 404, u ? { id: u.id, active: u.active } : { error: 'Not found' });
+  }
+
+  if (url.pathname.startsWith('/api/users/') && req.method === 'PUT') {
     const authUser = await authGuard(req, res);
     if (!authUser || authUser.role !== 1) return sendJSON(res, 403, { error: 'Admin only' });
     const id = url.pathname.split('/').pop();
-    if (req.method === 'DELETE') { const ok = await deleteUser(id); return sendJSON(res, ok ? 200 : 404, ok ? { success: true } : { error: 'Not found' }); }
     const body = await readBodyText(req, 1024 * 1024);
     try {
       const data = JSON.parse(body); const updates = {};

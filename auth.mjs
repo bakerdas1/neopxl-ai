@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { getApiKeyUser } from './store.mjs';
+import { getApiKeyUser, getUserAuth } from './store.mjs';
 
 const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? null : 'neopxl-dev-jwt-secret-key-32-chars-minimum!!');
 if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
@@ -35,19 +35,31 @@ export function verifyToken(token) {
 
 export async function authGuard(req, res) {
   const header = req.headers['authorization'] || '';
+  let candidate = null;
   if (header.startsWith('Bearer ')) {
-    try { return verifyToken(header.slice(7)); } catch {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Unauthorized — invalid or expired token' }));
-      return null;
-    }
+    try { candidate = verifyToken(header.slice(7)); } catch { candidate = null; }
   }
-  const apiKey = req.headers['x-api-key'];
-  if (apiKey) {
-    const user = await getApiKeyUser(apiKey);
-    if (user) return user;
+  if (!candidate) {
+    const apiKey = req.headers['x-api-key'];
+    if (apiKey) { try { candidate = await getApiKeyUser(apiKey); } catch { candidate = null; } }
   }
-  res.writeHead(401, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ error: 'Unauthorized — missing valid authentication' }));
-  return null;
+  if (!candidate || !candidate.id) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return null;
+  }
+  // Re-read the account so archiving takes effect immediately and the current
+  // role is authoritative (rather than the role in a 4h-old token).
+  const fresh = await getUserAuth(candidate.id);
+  if (!fresh) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return null;
+  }
+  if (fresh.active === false) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Account is disabled' }));
+    return null;
+  }
+  return { ...candidate, role: fresh.role, role_id: fresh.role_id, active: true };
 }
