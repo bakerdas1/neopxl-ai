@@ -197,7 +197,7 @@ async function loadTask() {
   updateTaskStatusBadge(status, job.statusMessage);
   applyTaskDetailPerms();
   const canRerun = (job.storedFiles && job.storedFiles.length > 0) && job.templateName !== 'schema-generation';
-  document.getElementById('rerunTaskBtn').style.display = (canRerun && (window.PERMS || {}).['tasks.rerun']) ? '' : 'none';
+  document.getElementById('rerunTaskBtn').style.display = (canRerun && (window.PERMS || {})['tasks.rerun']) ? '' : 'none';
 
   document.getElementById('statPages').textContent = job.pages || '—';
   document.getElementById('statTime').textContent = fmtDuration(job.timing?.total);

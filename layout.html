@@ -452,7 +452,6 @@ function toggleDevGroup() {
       if (path === '/tasks' && !window.PERMS['tasks.view']) { location.href = '/'; return; }
       try { window.dispatchEvent(new CustomEvent('permsready')); } catch (e) {}
     }).catch(() => {});
-    }).catch(() => {});
   } catch (e) {}
 })();
 </script>
