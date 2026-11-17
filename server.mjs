@@ -18,7 +18,7 @@ import { convertToZodSchema } from './extractor/src/utils/convertToZodSchema.js'
 import { getExtractor } from './extractor/src/extractors/index.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { BASE_EXTRACTION_PROMPT } from './extractor/src/prompts.js';
-import { verifyTotals, verifyCoverage, verifyCoveragePerPage, countRows, applyTotalFromItems } from './verifyTotals.mjs';
+import { verifyTotals, verifyCoverage, applyTotalFromItems } from './verifyTotals.mjs';
 import { templates } from './extractor/src/services/templates.js';
 import { generateSchema } from './schema-service/generateSchema.js';
 import { initDb, closeDb } from './db.mjs';
@@ -1083,67 +1083,12 @@ async function runExtraction(coreResult, schemaUsed, model, opts = {}) {
     }
     return out;
   };
-  const arrayGap = (mergedData, expected) => {
-    const gap = {};
-    for (const a of arraySchema) {
-      const actual = Array.isArray(mergedData[a.name]) ? mergedData[a.name].length : 0;
-      const e = expected?.[a.name];
-      if (typeof e === 'number' && actual !== e) {
-        gap[a.name] = { expected: e, actual };
-        console.info(`[verifyCoverage] GAP array=${a.name} merged=${actual} expected=${e}`);
-      }
-    }
-    return gap;
-  };
-  const gapTotal = g => Object.values(g || {}).reduce((s, v) => s + Math.abs(v.expected - v.actual), 0);
-
-  let merged = mergeArrays();
-  let coverageInfo = { skipGlobal: true, preAdjusted: false, gap: null };
-
-  if (opts.verifyCoverage) {
-    const pageCheck = await verifyCoveragePerPage(inputs, arrayResults, arraySchema, model, stats, arrayZod, extractPage);
-    coverageInfo.preAdjusted = pageCheck.adjusted;
-
-    const expected = {};
-    const incomplete = [];
-    const pageCounts = pageCheck.pageCounts || {};
-    for (const a of arraySchema) {
-      let sum = 0;
-      let complete = true;
-      for (let i = 0; i < inputs.length; i++) {
-        const n = pageCounts[i]?.[a.name];
-        if (typeof n !== 'number') { complete = false; break; }
-        sum += n;
-      }
-      if (complete) expected[a.name] = sum;
-      else incomplete.push(a.name);
-    }
-    if (incomplete.length) {
-      const fallback = await countRows(markdown, arraySchema, model, stats, extractPage);
-      console.info(`[verifyCoverage] fallback global count (per-page counts incomplete for ${incomplete.join(',')}): ${JSON.stringify(fallback)}`);
-      for (const name of incomplete) {
-        if (typeof fallback?.[name] === 'number') expected[name] = fallback[name];
-      }
-    }
-    console.info(`[verifyCoverage] expected counts (sum of per-page counts): ${JSON.stringify(expected)}`);
-    let gap = arrayGap(merged, expected);
-    if (gapTotal(gap) > 0 && gapTotal(gap) <= 5) {
-      console.info('[verifyCoverage] small gap detected — re-extracting all pages once to close it.');
-      const retried = await extractAllPages();
-      for (let i = 0; i < inputs.length; i++) arrayResults[i] = retried[i];
-      const remerged = mergeArrays();
-      const gap2 = arrayGap(remerged, expected);
-      if (gapTotal(gap2) < gapTotal(gap)) {
-        merged = remerged;
-        gap = gap2;
-        coverageInfo.preAdjusted = true;
-        console.info('[verifyCoverage] retry improved coverage; keeping the better result.');
-      } else {
-        console.info('[verifyCoverage] retry did not improve coverage; keeping the original result.');
-      }
-    }
-    coverageInfo.gap = gapTotal(gap) > 0 ? gap : null;
-  }
+  const merged = mergeArrays();
+  // Coverage is the final gate and runs cheaply: when enabled, finish() performs
+  // ONE global row-count and (only on mismatch) ONE repair re-extraction. This
+  // replaces the old per-page count+repair loop, which added two model calls per
+  // page and inflated extraction time on multi-page documents.
+  const coverageInfo = { skipGlobal: !opts.verifyCoverage, preAdjusted: false, gap: null };
 
   return await finish(merged, coverageInfo);
 }
