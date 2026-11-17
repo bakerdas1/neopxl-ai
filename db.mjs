@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   template_name TEXT,
   user_id TEXT,
   api_key_name TEXT,
+  workflow_id TEXT,
   created_at BIGINT,
   completed_at BIGINT,
   error TEXT,
@@ -88,8 +89,10 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS status_message TEXT;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS additional_prompt TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS workflow_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_jobs_workflow ON jobs(workflow_id);
 
 CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
@@ -106,6 +109,49 @@ CREATE TABLE IF NOT EXISTS stats (
   total_gemini_calls INTEGER NOT NULL DEFAULT 0
 );
 INSERT INTO stats (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS workflows (
+  id TEXT PRIMARY KEY,
+  template_id TEXT NOT NULL REFERENCES templates(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  language TEXT NOT NULL DEFAULT 'python' CHECK (language IN ('python', 'javascript')),
+  code TEXT NOT NULL DEFAULT '',
+  version INTEGER NOT NULL DEFAULT 1,
+  is_enabled INTEGER NOT NULL DEFAULT 0,
+  created_by TEXT,
+  created_at BIGINT,
+  updated_at BIGINT
+);
+CREATE INDEX IF NOT EXISTS idx_workflows_template ON workflows(template_id);
+CREATE INDEX IF NOT EXISTS idx_workflows_enabled ON workflows(is_enabled);
+
+CREATE TABLE IF NOT EXISTS workflow_versions (
+  id TEXT PRIMARY KEY,
+  workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+  version INTEGER NOT NULL,
+  code TEXT NOT NULL DEFAULT '',
+  created_by TEXT,
+  created_at BIGINT
+);
+CREATE INDEX IF NOT EXISTS idx_workflow_versions_workflow ON workflow_versions(workflow_id, version);
+
+CREATE TABLE IF NOT EXISTS workflow_executions (
+  id TEXT PRIMARY KEY,
+  workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+  version INTEGER NOT NULL,
+  job_id TEXT REFERENCES jobs(id) ON DELETE SET NULL,
+  input_hash TEXT,
+  status TEXT NOT NULL DEFAULT 'in-progress',
+  duration_ms INTEGER,
+  error_type TEXT,
+  error_message TEXT,
+  error_line INTEGER,
+  output_size INTEGER,
+  created_at BIGINT
+);
+CREATE INDEX IF NOT EXISTS idx_workflow_executions_workflow ON workflow_executions(workflow_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_workflow_executions_job ON workflow_executions(job_id);
 `;
 
 const DB_NAME = new URL(DATABASE_URL).pathname.replace(/^\//, '') || 'documind';
