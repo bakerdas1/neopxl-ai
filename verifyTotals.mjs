@@ -355,6 +355,7 @@ const COVERAGE_COUNT_PROMPT = `You are a meticulous document auditor. Count the 
 
 RULES
 - Count every single record. Never skip rows, even when they repeat across page boundaries or pages break mid-table.
+- When the same entity appears on multiple lines (for example, an Arrival line AND a Departure line for the same flight number + registration + date), count it as ONE record, not two.
 - Do NOT count headers, table titles, footers, signature lines, subtotal/total/summary rows, or grouping labels.
 - Do NOT count "continued on next page" style placeholders.
 - If a category has no records at all, return 0.
