@@ -94,6 +94,10 @@
         <select id="templateSelect" onchange="onTemplateChange()"><option value="">None (raw markdown)</option></select>
         <a href="javascript:void(0)" id="addTplLink" onclick="openTplModal()" style="display:block;margin-top:6px;font-size:12px;color:var(--brand-green-dark);text-decoration:none">+ Add new template</a>
       </div>
+      <div class="form-group" id="wfSelectWrap" style="display:none">
+        <label>Workflow</label>
+        <select id="workflowSelect"><option value="">None</option></select>
+      </div>
       <div class="form-group">
         <label>Pages</label>
         <div class="page-toggle">
@@ -573,7 +577,21 @@ async function loadTemplates() {
   sel.querySelectorAll('option:not(:first-child)').forEach(o=>o.remove());
   templatesCache.forEach(t=>{const o=document.createElement('option');o.value=t.name;o.textContent=t.name;sel.appendChild(o)});
 }
-function onTemplateChange(){}
+function onTemplateChange(){
+  const wrap=document.getElementById('wfSelectWrap');
+  const sel=document.getElementById('workflowSelect');
+  const tplName=document.getElementById('templateSelect').value;
+  wrap.style.display = tplName ? 'block' : 'none';
+  if (!tplName) { sel.innerHTML='<option value="">None</option>'; return; }
+  sel.innerHTML='<option value="">None</option>';
+  const tpl=templatesCache.find(t=>t.name===tplName);
+  if (!tpl) return;
+  apiFetch('/api/workflows?template_id=' + encodeURIComponent(tpl.id)).then(d=>d.json()).then(wfs=>{
+    wfs.filter(w=>w.isEnabled).forEach(w=>{
+      const o=document.createElement('option');o.value=w.id;o.textContent=w.name;sel.appendChild(o);
+    });
+  }).catch(()=>{});
+}
 function setPageMode(mode){
   const all=document.getElementById('pageToggleAll'),range=document.getElementById('pageToggleRange');
   const wrap=document.getElementById('pageRangeWrap');
@@ -582,13 +600,15 @@ function setPageMode(mode){
 }
 function openExtractionModal(){setPageMode('all');document.getElementById('pageRange').value='';document.getElementById('extractModalOverlay').style.display='flex'}
 function closeExtractModal(){document.getElementById('extractModalOverlay').style.display='none'}
-function resetExtractForm(){document.getElementById('fileInput').value='';document.getElementById('templateSelect').value='';document.getElementById('mixedChargesInput').checked=false;document.getElementById('additionalPromptInput').value='';setPageMode('all');document.getElementById('pageRange').value='';document.getElementById('extractStatus').style.display='none';document.getElementById('extractResult').style.display='none';document.getElementById('extractBtn').disabled=false}
+function resetExtractForm(){document.getElementById('fileInput').value='';document.getElementById('templateSelect').value='';document.getElementById('mixedChargesInput').checked=false;document.getElementById('additionalPromptInput').value='';document.getElementById('workflowSelect').value='';document.getElementById('wfSelectWrap').style.display='none';setPageMode('all');document.getElementById('pageRange').value='';document.getElementById('extractStatus').style.display='none';document.getElementById('extractResult').style.display='none';document.getElementById('extractBtn').disabled=false}
 document.getElementById('extractModalOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeExtractModal()});
 
 async function startExtraction(){
   const btn=document.getElementById('extractBtn');const status=document.getElementById('extractStatus');const result=document.getElementById('extractResult');
   btn.disabled=true;status.style.display='block';status.innerHTML='<p>Submitting...</p>';result.style.display='none';
   const fd=new FormData();for(const f of document.getElementById('fileInput').files)fd.append('file',f);fd.append('template',document.getElementById('templateSelect').value);
+  const wfSel=document.getElementById('workflowSelect');
+  if(wfSel && wfSel.value) fd.append('workflow_id',wfSel.value);
   if(document.getElementById('mixedChargesInput').checked)fd.append('mixed_charges','1');
   const ap=document.getElementById('additionalPromptInput').value.trim();if(ap)fd.append('additional_prompt',ap);
   const rangeMode=document.getElementById('pageToggleRange').classList.contains('active');

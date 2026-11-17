@@ -1355,6 +1355,7 @@ const server = createServer(async (req, res) => {
       .replace('{{DEV_OPEN}}', (activePage === 'keys' || activePage === 'reference') ? 'block' : 'none')
       .replace('{{SCHEMAS_ACTIVE}}', activePage === 'schemas' ? 'active' : '')
       .replace('{{TEMPLATES_ACTIVE}}', activePage === 'templates' ? 'active' : '')
+      .replace('{{WORKFLOWS_ACTIVE}}', activePage === 'workflows' ? 'active' : '')
       .replace('{{SETTINGS_ACTIVE}}', activePage === 'settings' ? 'active' : '');
     res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
@@ -1399,6 +1400,7 @@ const server = createServer(async (req, res) => {
       .replace('{{DEV_OPEN}}', 'block')
       .replace('{{SCHEMAS_ACTIVE}}', '')
       .replace('{{TEMPLATES_ACTIVE}}', '')
+      .replace('{{WORKFLOWS_ACTIVE}}', '')
       .replace('{{SETTINGS_ACTIVE}}', '');
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(html);
@@ -1411,6 +1413,10 @@ const server = createServer(async (req, res) => {
 
   if (url.pathname === '/templates') {
     return servePage('templates.html', 'Templates', 'templates');
+  }
+
+  if (url.pathname === '/workflows') {
+    return servePage('workflows.html', 'Workflows', 'workflows');
   }
 
   if (url.pathname === '/settings') {

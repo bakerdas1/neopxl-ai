@@ -326,6 +326,12 @@ function chipsToFilter(keepArr, dropArr) {
         </svg>
         Templates
       </a>
+      <a href="/workflows" class="{{WORKFLOWS_ACTIVE}}" data-perm="workflows.view">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        Workflows
+      </a>
       <div class="sidebar-group {{DEV_ACTIVE}}" id="devGroup">
         <a href="javascript:void(0)" class="sidebar-group-toggle {{DEV_ACTIVE}}" onclick="toggleDevGroup()">
           <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -448,6 +454,7 @@ function toggleDevGroup() {
       const path = location.pathname;
       if (path === '/settings' && !isAdmin) { location.href = '/'; return; }
       if (path === '/templates' && !window.PERMS['templates.view']) { location.href = '/'; return; }
+      if (path === '/workflows' && !window.PERMS['workflows.view']) { location.href = '/'; return; }
       if (path === '/schemas' && !window.PERMS.schemas) { location.href = '/'; return; }
       if (path === '/tasks' && !window.PERMS['tasks.view']) { location.href = '/'; return; }
       try { window.dispatchEvent(new CustomEvent('permsready')); } catch (e) {}
