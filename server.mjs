@@ -8,7 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 import { tmpdir } from 'os';
 import crypto from 'crypto';
 import pLimit from 'p-limit';
-import { loadStore, addJob, updateJob, getStats, getJobs, getJobCards, getJobCounts, getTemplates, addTemplate, updateTemplate, deleteTemplate, getUsers, getUserByEmail, addUser, updateUser, deleteUser, setUserActive, getCompanies, addCompany, updateCompany, deleteCompany, createApiKey, getUserApiKeys, revokeApiKey, getApiKeyUser, deleteJob, markOrphanedJobsAsError, getJobResultData, getSetting, setSetting, getRoles, getRole, addRole, updateRole, deleteRole, getUserPermissions, getUserAuth } from './store.mjs';
+import { loadStore, addJob, updateJob, getStats, getJobs, getJobCards, getJobCounts, getTemplates, addTemplate, updateTemplate, deleteTemplate, cloneTemplate, getUsers, getUserByEmail, addUser, updateUser, deleteUser, setUserActive, getCompanies, addCompany, updateCompany, deleteCompany, createApiKey, getUserApiKeys, revokeApiKey, getApiKeyUser, deleteJob, markOrphanedJobsAsError, getJobResultData, getSetting, setSetting, getRoles, getRole, addRole, updateRole, deleteRole, getUserPermissions, getUserAuth } from './store.mjs';
 import { PERMISSION_KEYS, fullPermissions, permissionLabel } from './permissions.mjs';
 import { hashPassword, comparePassword, signToken, verifyToken, authGuard } from './auth.mjs';
 import 'dotenv/config';
@@ -2654,6 +2654,13 @@ function checkAuth(req, res) {
       sendJSON(res, 400, { error: e.message });
     }
     return;
+  }
+
+  if (url.pathname.match(/^\/api\/templates\/[^/]+\/clone$/) && req.method === 'POST') {
+    if (!await authWithPerm(req, res, 'templates.create')) return;
+    const id = url.pathname.split('/')[3];
+    const tpl = await cloneTemplate(id);
+    return sendJSON(res, tpl ? 200 : 404, tpl || { error: 'Not found' });
   }
 
   if (url.pathname.startsWith('/api/templates/') && (req.method === 'PUT' || req.method === 'DELETE')) {

@@ -363,6 +363,26 @@ export async function addTemplate(template) {
   return { ...r.rows[0], verifyCoverage: r.rows[0].verify_coverage === 1, verifyTotals: r.rows[0].verify_totals === 0 ? false : true, perPage: r.rows[0].per_page === 1, dropSummaryRows: r.rows[0].drop_summary_rows === 1, dateFormat: r.rows[0].date_format || null, dateInputFormat: r.rows[0].date_input_format || null };
 }
 
+/** Duplicate an existing template under a new id, with " - clone" appended to its name. */
+export async function cloneTemplate(id) {
+  const r = await pool.query('SELECT * FROM templates WHERE id = $1', [id]);
+  const src = r.rows[0];
+  if (!src) return null;
+  return addTemplate({
+    name: `${src.name} - clone`,
+    schema: src.schema || '',
+    filter: src.filter || '',
+    keywords: src.keywords || '',
+    verifyCoverage: src.verify_coverage === 1,
+    verifyTotals: src.verify_totals !== 0,
+    perPage: src.per_page === 1,
+    dropSummaryRows: src.drop_summary_rows === 1,
+    dateFormat: src.date_format || null,
+    dateInputFormat: src.date_input_format || null,
+    domain: src.domain || null,
+  });
+}
+
 export async function updateTemplate(id, updates) {
   const cols = [];
   const vals = [];
