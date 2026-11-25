@@ -26,6 +26,7 @@ function rowToJob(r) {
     additionalPrompt: r.additional_prompt ?? null,
     model: r.model ?? null,
     templateName: r.template_name ?? null,
+    workflowId: r.workflow_id ?? null,
     userId: r.user_id || 'system',
     apiKeyName: r.api_key_name ?? null,
     userEmail: r.user_email ?? null,
@@ -56,6 +57,7 @@ export async function addJob(jobId, meta, userId) {
     additional_prompt: meta?.additionalPrompt ?? null,
     model: meta?.model ?? null,
     template_name: meta?.templateName ?? null,
+    workflow_id: meta?.workflowId ?? null,
     user_id: userId || 'system',
     api_key_name: meta?.apiKeyName ?? null,
     status_message: meta?.statusMessage ?? null,
@@ -129,7 +131,7 @@ export async function updateJob(jobId, updates) {
 }
 
 export async function getJobs(userId, isAdmin) {
-  const cols = 'j.id, j.file_name, j.pages, j.status, j.timing, j.tokens, j.cost, j.gemini_calls, j.schema, j.filter, j.additional_prompt, j.model, j.template_name, j.user_id, j.api_key_name, j.created_at, j.completed_at, j.error, j.status_message, j.stored_files, u.email AS user_email, u.first_name AS user_first_name, u.last_name AS user_last_name';
+  const cols = 'j.id, j.file_name, j.pages, j.status, j.timing, j.tokens, j.cost, j.gemini_calls, j.schema, j.filter, j.additional_prompt, j.model, j.template_name, j.workflow_id, j.user_id, j.api_key_name, j.created_at, j.completed_at, j.error, j.status_message, j.stored_files, u.email AS user_email, u.first_name AS user_first_name, u.last_name AS user_last_name';
   const q = isAdmin
     ? await pool.query(`SELECT ${cols} FROM jobs j LEFT JOIN users u ON u.id = j.user_id ORDER BY j.created_at DESC`)
     : await pool.query(`SELECT ${cols} FROM jobs j LEFT JOIN users u ON u.id = j.user_id WHERE j.user_id = $1 OR j.user_id = $2 ORDER BY j.created_at DESC`, [userId, 'system']);
@@ -137,7 +139,7 @@ export async function getJobs(userId, isAdmin) {
 }
 
 export async function getRecentJobs(limit, userId, isAdmin) {
-  const cols = 'j.id, j.file_name, j.pages, j.status, j.timing, j.tokens, j.cost, j.gemini_calls, j.schema, j.filter, j.additional_prompt, j.model, j.template_name, j.user_id, j.api_key_name, j.created_at, j.completed_at, j.error, j.status_message, j.stored_files, u.email AS user_email, u.first_name AS user_first_name, u.last_name AS user_last_name';
+  const cols = 'j.id, j.file_name, j.pages, j.status, j.timing, j.tokens, j.cost, j.gemini_calls, j.schema, j.filter, j.additional_prompt, j.model, j.template_name, j.workflow_id, j.user_id, j.api_key_name, j.created_at, j.completed_at, j.error, j.status_message, j.stored_files, u.email AS user_email, u.first_name AS user_first_name, u.last_name AS user_last_name';
   const base = isAdmin
     ? `SELECT ${cols} FROM jobs j LEFT JOIN users u ON u.id = j.user_id`
     : `SELECT ${cols} FROM jobs j LEFT JOIN users u ON u.id = j.user_id WHERE j.user_id = $1 OR j.user_id = $2`;
@@ -188,7 +190,7 @@ function buildJobFilterClause(filter, params) {
 }
 
 export async function getJobCards(userId, isAdmin, limit, offset, filter = {}) {
-  const cols = 'j.id, j.file_name, j.pages, j.status, j.timing, j.cost, j.gemini_calls, j.template_name, j.status_message, j.created_at, u.email AS user_email, u.first_name AS user_first_name, u.last_name AS user_last_name';
+  const cols = 'j.id, j.file_name, j.pages, j.status, j.timing, j.cost, j.gemini_calls, j.template_name, j.workflow_id, j.status_message, j.created_at, u.email AS user_email, u.first_name AS user_first_name, u.last_name AS user_last_name';
   const params = [];
   const conds = [];
   if (!isAdmin) { params.push(userId, 'system'); conds.push('(j.user_id = $1 OR j.user_id = $2)'); }
@@ -425,6 +427,170 @@ export async function updateTemplate(id, updates) {
 export async function deleteTemplate(id) {
   const r = await pool.query('DELETE FROM templates WHERE id = $1 RETURNING id', [id]);
   return r.rowCount > 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Workflows                                                          */
+/* ------------------------------------------------------------------ */
+
+export async function getWorkflows(templateId) {
+  const r = await pool.query(
+    'SELECT * FROM workflows WHERE template_id = $1 ORDER BY created_at ASC, id ASC',
+    [templateId]
+  );
+  return r.rows.map(w => ({
+    ...w,
+    version: Number(w.version || 1),
+    isEnabled: w.is_enabled === 1 || w.is_enabled === true,
+    createdAt: w.created_at == null ? null : Number(w.created_at),
+    updatedAt: w.updated_at == null ? null : Number(w.updated_at),
+  }));
+}
+
+export async function getWorkflow(id) {
+  const r = await pool.query('SELECT * FROM workflows WHERE id = $1', [id]);
+  if (!r.rows[0]) return null;
+  const w = r.rows[0];
+  return {
+    ...w,
+    version: Number(w.version || 1),
+    isEnabled: w.is_enabled === 1 || w.is_enabled === true,
+    createdAt: w.created_at == null ? null : Number(w.created_at),
+    updatedAt: w.updated_at == null ? null : Number(w.updated_at),
+  };
+}
+
+export async function addWorkflow(workflow) {
+  const id = crypto.randomBytes(8).toString('hex');
+  const now = Date.now();
+  const r = await pool.query(
+    `INSERT INTO workflows (id, template_id, name, description, language, code, version, is_enabled, created_by, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+    [
+      id,
+      workflow.templateId,
+      workflow.name,
+      workflow.description || null,
+      workflow.language || 'python',
+      workflow.code || '',
+      1,
+      workflow.isEnabled ? 1 : 0,
+      workflow.createdBy || null,
+      now,
+      now,
+    ]
+  );
+  // Record initial version
+  await pool.query(
+    `INSERT INTO workflow_versions (id, workflow_id, version, code, created_by, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [crypto.randomBytes(8).toString('hex'), id, 1, workflow.code || '', workflow.createdBy || null, now]
+  );
+  const w = r.rows[0];
+  return {
+    ...w,
+    version: Number(w.version || 1),
+    isEnabled: w.is_enabled === 1 || w.is_enabled === true,
+    createdAt: Number(w.created_at),
+    updatedAt: Number(w.updated_at),
+  };
+}
+
+export async function updateWorkflow(id, updates) {
+  const w = await getWorkflow(id);
+  if (!w) return null;
+
+  const newVersion = w.version + 1;
+  const now = Date.now();
+
+  // Archive the current code as a version
+  await pool.query(
+    `INSERT INTO workflow_versions (id, workflow_id, version, code, created_by, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [crypto.randomBytes(8).toString('hex'), id, w.version, w.code, updates.createdBy || null, now]
+  );
+
+  const cols = [];
+  const vals = [];
+  const map = { name: 'name', description: 'description', language: 'language', code: 'code' };
+  for (const [k, col] of Object.entries(map)) {
+    if (updates[k] !== undefined) { cols.push(`"${col}" = $${vals.length + 1}`); vals.push(updates[k]); }
+  }
+  if (updates.isEnabled !== undefined) {
+    cols.push(`is_enabled = $${vals.length + 1}`);
+    vals.push(updates.isEnabled ? 1 : 0);
+  }
+  cols.push(`version = $${vals.length + 1}`);
+  vals.push(newVersion);
+  cols.push(`updated_at = $${vals.length + 1}`);
+  vals.push(now);
+
+  const r = await pool.query(`UPDATE workflows SET ${cols.join(', ')} WHERE id = $${vals.length + 1} RETURNING *`, [...vals, id]);
+  if (!r.rows[0]) return null;
+  const uw = r.rows[0];
+  return {
+    ...uw,
+    version: Number(uw.version || 1),
+    isEnabled: uw.is_enabled === 1 || uw.is_enabled === true,
+    createdAt: Number(uw.created_at),
+    updatedAt: Number(uw.updated_at),
+  };
+}
+
+export async function deleteWorkflow(id) {
+  const r = await pool.query('DELETE FROM workflows WHERE id = $1 RETURNING id', [id]);
+  return r.rowCount > 0;
+}
+
+export async function getWorkflowVersions(workflowId) {
+  const r = await pool.query(
+    'SELECT * FROM workflow_versions WHERE workflow_id = $1 ORDER BY version DESC',
+    [workflowId]
+  );
+  return r.rows.map(v => ({
+    ...v,
+    version: Number(v.version),
+    createdAt: v.created_at == null ? null : Number(v.created_at),
+  }));
+}
+
+export async function addWorkflowExecution(execution) {
+  const id = crypto.randomBytes(8).toString('hex');
+  const now = Date.now();
+  const r = await pool.query(
+    `INSERT INTO workflow_executions (id, workflow_id, version, job_id, input_hash, status, duration_ms, error_type, error_message, error_line, output_size, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+    [
+      id,
+      execution.workflowId,
+      execution.version,
+      execution.jobId || null,
+      execution.inputHash || null,
+      execution.status || 'in-progress',
+      execution.durationMs || null,
+      execution.errorType || null,
+      execution.errorMessage || null,
+      execution.errorLine || null,
+      execution.outputSize || null,
+      now,
+    ]
+  );
+  return r.rows[0];
+}
+
+export async function getWorkflowExecutions(workflowId, limit = 50) {
+  const r = await pool.query(
+    'SELECT * FROM workflow_executions WHERE workflow_id = $1 ORDER BY created_at DESC LIMIT $2',
+    [workflowId, limit]
+  );
+  return r.rows.map(e => ({
+    ...e,
+    version: Number(e.version),
+    durationMs: e.duration_ms == null ? null : Number(e.duration_ms),
+    errorLine: e.error_line == null ? null : Number(e.error_line),
+    outputSize: e.output_size == null ? null : Number(e.output_size),
+    createdAt: e.created_at == null ? null : Number(e.created_at),
+  }));
 }
 
 function hashApiKey(key) {

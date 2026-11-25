@@ -7,6 +7,8 @@
  *   tasks.create, tasks.rerun, tasks.delete
  * Template actions (CRUD):
  *   templates.create, templates.edit, templates.delete
+ * Workflow actions (CRUD):
+ *   workflows.view, workflows.create, workflows.edit, workflows.delete, workflows.execute
  *
  * Settings is intentionally NOT a permission: it is admin-only (role 1).
  */
@@ -21,6 +23,11 @@ export const PERMISSION_KEYS = [
   'templates.create',
   'templates.edit',
   'templates.delete',
+  'workflows.view',
+  'workflows.create',
+  'workflows.edit',
+  'workflows.delete',
+  'workflows.execute',
   'schemas',
 ];
 
@@ -50,6 +57,11 @@ export function permissionLabel(key) {
     'templates.edit': 'Templates — edit',
     'templates.delete': 'Templates — delete',
     schemas: 'Schema Generator',
+    'workflows.view': 'Workflows — view',
+    'workflows.create': 'Workflows — create',
+    'workflows.edit': 'Workflows — edit',
+    'workflows.delete': 'Workflows — delete',
+    'workflows.execute': 'Workflows — execute',
   };
   return labels[key] || key;
 }
