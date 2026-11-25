@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   schema JSONB,
   filter JSONB,
   additional_prompt TEXT,
+  model TEXT,
   template_name TEXT,
   user_id TEXT,
   api_key_name TEXT,
@@ -88,6 +89,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS status_message TEXT;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS additional_prompt TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS model TEXT;
 CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC);
 

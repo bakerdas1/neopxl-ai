@@ -95,6 +95,7 @@
         <div class="detail-meta-row" id="metaReconcileRow" style="display:none"><span class="meta-label">Total Check</span><span class="meta-value" id="metaReconcile">—</span></div>
         <div class="detail-meta-row" id="metaCoverageRow" style="display:none"><span class="meta-label">Coverage Check</span><span class="meta-value" id="metaCoverage">—</span></div>
         <div class="detail-meta-row"><span class="meta-label">Template</span><span class="meta-value" id="metaTemplate">—</span></div>
+        <div class="detail-meta-row"><span class="meta-label">Model</span><span class="meta-value" id="metaModel">—</span></div>
         <div class="detail-meta-row"><span class="meta-label">User</span><span class="meta-value" id="metaUser">—</span></div>
         <div class="detail-meta-row"><span class="meta-label">Created</span><span class="meta-value" id="metaCreated">—</span></div>
         <div class="detail-meta-row"><span class="meta-label">Completed</span><span class="meta-value" id="metaCompleted">—</span></div>
@@ -212,6 +213,10 @@ async function loadTask() {
   }
   document.getElementById('metaStatus').textContent = status.toUpperCase();
   document.getElementById('metaTemplate').textContent = job.templateName || '—';
+  const modelName = job.model || null;
+  document.getElementById('metaModel').textContent = modelName
+    ? (modelName.includes(':') || modelName === 'llama3.2-vision' ? modelName + ' - Local' : modelName)
+    : '—';
   document.getElementById('metaUser').innerHTML = job.userEmail ? userChip(job) : '—';
   document.getElementById('metaCreated').textContent = job.createdAt ? new Date(job.createdAt).toLocaleString() : '—';
   document.getElementById('metaCompleted').textContent = job.completedAt ? new Date(job.completedAt).toLocaleString() : '—';

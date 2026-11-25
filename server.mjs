@@ -1898,6 +1898,7 @@ const server = createServer(async (req, res) => {
     const user = await authWithPerm(req, res, 'tasks.create');
     if (!user) return;
     try {
+      const model = getModel();
       const boundary = getBoundary(req.headers['content-type']);
       if (!boundary) return sendJSON(res, 400, { error: 'No boundary' });
 
@@ -1925,7 +1926,7 @@ const server = createServer(async (req, res) => {
       }
       const wallStart = Date.now();
       jobs.set(jobId, { status: 'processing', page: 0, totalPages: 0, userId: user.id });
-      await addJob(jobId, { fileName: joinFileNames(uploads), status: 'in-progress', schema: fields.schema || null, filter: fields.filter || null, additionalPrompt: (fields.additional_prompt || fields.additional_instructions || '').trim() || null, templateName: tplName, createdAt: wallStart }, user.id);
+      await addJob(jobId, { fileName: joinFileNames(uploads), status: 'in-progress', schema: fields.schema || null, filter: fields.filter || null, additionalPrompt: (fields.additional_prompt || fields.additional_instructions || '').trim() || null, model, templateName: tplName, createdAt: wallStart }, user.id);
       try { await updateJob(jobId, { storedFiles: await persistJobFiles(jobId, uploads) }); } catch (e) { console.error('persist failed', e); }
 
       (async () => {
@@ -2114,7 +2115,7 @@ async function startAsyncPipeline(jobId, files, fields, apiUser, model) {
 
   jobs.set(jobId, { status: 'processing', eta: estimate.text, userId: apiUser.id });
   const wallStart = Date.now();
-  await addJob(jobId, { fileName: joinFileNames(uploads), status: 'in-progress', pages: totalPages, schema: fields.schema || null, filter: finalFilter, additionalPrompt: (fields.additional_prompt || fields.additional_instructions || '').trim() || null, templateName: tplName, apiKeyName: apiUser._apiKeyName || null, createdAt: wallStart }, apiUser.id);
+  await addJob(jobId, { fileName: joinFileNames(uploads), status: 'in-progress', pages: totalPages, schema: fields.schema || null, filter: finalFilter, additionalPrompt: (fields.additional_prompt || fields.additional_instructions || '').trim() || null, model, templateName: tplName, apiKeyName: apiUser._apiKeyName || null, createdAt: wallStart }, apiUser.id);
   try { await updateJob(jobId, { storedFiles: await persistJobFiles(jobId, uploads) }); } catch (e) { console.error('persist failed', e); }
 
   (async () => {
@@ -2743,7 +2744,7 @@ function checkAuth(req, res) {
       const eta = estimatedMs < 60000 ? `~${Math.round(estimatedMs / 1000)}s` : `~${Math.round(estimatedMs / 60000)} min`;
 
       schemaJobs.set(jobId, { status: 'processing', eta, fileCount: docFiles.length, userId: apiUser.id });
-      await addJob(jobId, { fileName: files[0].filename, status: 'in-progress', schema: null, filter: null, templateName: 'schema-generation', apiKeyName: apiUser._apiKeyName || null, createdAt: Date.now() }, apiUser.id);
+      await addJob(jobId, { fileName: files[0].filename, status: 'in-progress', schema: null, filter: null, model, templateName: 'schema-generation', apiKeyName: apiUser._apiKeyName || null, createdAt: Date.now() }, apiUser.id);
       try { await updateJob(jobId, { storedFiles: await persistJobFiles(jobId, files) }); } catch (e) { console.error('persist failed', e); }
 
       (async () => {
