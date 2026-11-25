@@ -8,8 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 import { tmpdir } from 'os';
 import crypto from 'crypto';
 import pLimit from 'p-limit';
-import { loadStore, addJob, updateJob, getStats, getJobs, getJobCards, getJobCounts, getTemplates, addTemplate, updateTemplate, deleteTemplate, cloneTemplate, getUsers, getUserByEmail, addUser, updateUser, deleteUser, setUserActive, getCompanies, addCompany, updateCompany, deleteCompany, createApiKey, getUserApiKeys, revokeApiKey, getApiKeyUser, deleteJob, markOrphanedJobsAsError, getJobResultData, getSetting, setSetting, getRoles, getRole, addRole, updateRole, deleteRole, getUserPermissions, getUserAuth, getWorkflows, getWorkflow, addWorkflow, updateWorkflow, deleteWorkflow, getWorkflowVersions, addWorkflowExecution, getWorkflowExecutions } from './store.mjs';
-import { validateWorkflowCode, runWorkflow, hashInput } from './workflowSandbox.mjs';
+import { loadStore, addJob, updateJob, getStats, getJobs, getJobCards, getJobCounts, getTemplates, addTemplate, updateTemplate, deleteTemplate, cloneTemplate, getUsers, getUserByEmail, addUser, updateUser, deleteUser, setUserActive, getCompanies, addCompany, updateCompany, deleteCompany, createApiKey, getUserApiKeys, revokeApiKey, getApiKeyUser, deleteJob, markOrphanedJobsAsError, getJobResultData, getSetting, setSetting, getRoles, getRole, addRole, updateRole, deleteRole, getUserPermissions, getUserAuth } from './store.mjs';
 import { PERMISSION_KEYS, fullPermissions, permissionLabel } from './permissions.mjs';
 import { hashPassword, comparePassword, signToken, verifyToken, authGuard } from './auth.mjs';
 import 'dotenv/config';
@@ -1355,7 +1354,6 @@ const server = createServer(async (req, res) => {
       .replace('{{DEV_OPEN}}', (activePage === 'keys' || activePage === 'reference') ? 'block' : 'none')
       .replace('{{SCHEMAS_ACTIVE}}', activePage === 'schemas' ? 'active' : '')
       .replace('{{TEMPLATES_ACTIVE}}', activePage === 'templates' ? 'active' : '')
-      .replace('{{WORKFLOWS_ACTIVE}}', activePage === 'workflows' ? 'active' : '')
       .replace('{{SETTINGS_ACTIVE}}', activePage === 'settings' ? 'active' : '');
     res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
@@ -1400,7 +1398,6 @@ const server = createServer(async (req, res) => {
       .replace('{{DEV_OPEN}}', 'block')
       .replace('{{SCHEMAS_ACTIVE}}', '')
       .replace('{{TEMPLATES_ACTIVE}}', '')
-      .replace('{{WORKFLOWS_ACTIVE}}', '')
       .replace('{{SETTINGS_ACTIVE}}', '');
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(html);
@@ -1413,10 +1410,6 @@ const server = createServer(async (req, res) => {
 
   if (url.pathname === '/templates') {
     return servePage('templates.html', 'Templates', 'templates');
-  }
-
-  if (url.pathname === '/workflows') {
-    return servePage('workflows.html', 'Workflows', 'workflows');
   }
 
   if (url.pathname === '/settings') {
@@ -1931,10 +1924,9 @@ const server = createServer(async (req, res) => {
         const tpl = tpls.find(t => t.id === tplName || t.name === tplName);
         if (tpl) tplName = tpl.name;
       }
-      const workflowId = (fields.workflow_id || '').trim() || null;
       const wallStart = Date.now();
       jobs.set(jobId, { status: 'processing', page: 0, totalPages: 0, userId: user.id });
-      await addJob(jobId, { fileName: joinFileNames(uploads), status: 'in-progress', schema: fields.schema || null, filter: fields.filter || null, additionalPrompt: (fields.additional_prompt || fields.additional_instructions || '').trim() || null, model, templateName: tplName, createdAt: wallStart, workflowId }, user.id);
+      await addJob(jobId, { fileName: joinFileNames(uploads), status: 'in-progress', schema: fields.schema || null, filter: fields.filter || null, additionalPrompt: (fields.additional_prompt || fields.additional_instructions || '').trim() || null, model, templateName: tplName, createdAt: wallStart }, user.id);
       try { await updateJob(jobId, { storedFiles: await persistJobFiles(jobId, uploads) }); } catch (e) { console.error('persist failed', e); }
 
       (async () => {
@@ -2002,41 +1994,6 @@ const server = createServer(async (req, res) => {
             const markdownData = { success: true, pages: coreResult.pages.length, markdown, fileName: coreResult.fileName };
             jobs.set(jobId, { status: 'done', meta: { pages: coreResult.pages.length }, data: markdownData, userId: user.id });
             await updateJob(jobId, { status: 'done', pages: coreResult.pages.length, geminiCalls: coreResult.source === 'pymupdf' ? 0 : coreResult.pages.length, timing: { total: Date.now() - wallStart }, cost: {}, resultData: markdownData });
-          }
-
-          // --- Workflow execution after extraction ---
-          if (workflowId) {
-            try {
-              const wf = await getWorkflow(workflowId);
-              if (wf && wf.isEnabled) {
-                const inputData = jobs.get(jobId)?.data || {};
-                const start = Date.now();
-                const wfResult = await runWorkflow(wf.language, wf.code, inputData);
-                const duration = Date.now() - start;
-                await addWorkflowExecution({
-                  workflowId,
-                  version: wf.version,
-                  jobId,
-                  inputHash: hashInput(inputData),
-                  status: wfResult.ok ? 'done' : 'error',
-                  durationMs: duration,
-                  errorType: wfResult.ok ? null : wfResult.error?.type,
-                  errorMessage: wfResult.ok ? null : wfResult.error?.message,
-                  errorLine: wfResult.ok ? null : wfResult.error?.line,
-                  outputSize: wfResult.ok ? JSON.stringify(wfResult.result).length : null,
-                });
-                if (wfResult.ok) {
-                  const updatedData = { ...inputData, workflow_result: wfResult.result, workflow_applied: true };
-                  jobs.set(jobId, { ...jobs.get(jobId), data: updatedData });
-                  await updateJob(jobId, { resultData: updatedData });
-                } else {
-                  jobs.set(jobId, { ...jobs.get(jobId), workflow_error: wfResult.error });
-                  await updateJob(jobId, { status_message: `Workflow error: ${wfResult.error.message}` });
-                }
-              }
-            } catch (wfErr) {
-              console.error('Workflow execution failed:', wfErr);
-            }
           }
         } catch (err) {
           console.error(err);
@@ -2724,133 +2681,6 @@ function checkAuth(req, res) {
       sendJSON(res, 400, { error: e.message });
     }
     return;
-  }
-
-  /* ------------------------------------------------------------------ */
-  /* Workflows                                                          */
-  /* ------------------------------------------------------------------ */
-
-  if (url.pathname === '/api/workflows' && req.method === 'GET') {
-    const apiUser = await authWithPerm(req, res, 'workflows.view');
-    if (!apiUser) return;
-    const templateId = url.searchParams.get('template_id');
-    if (!templateId) return sendJSON(res, 400, { error: 'template_id required' });
-    const workflows = await getWorkflows(templateId);
-    return sendJSON(res, 200, workflows);
-  }
-
-  if (url.pathname === '/api/workflows' && req.method === 'POST') {
-    const apiUser = await authWithPerm(req, res, 'workflows.create');
-    if (!apiUser) return;
-    const body = await readBodyText(req, 5 * 1024 * 1024);
-    try {
-      const data = JSON.parse(body);
-      // Validate code before saving
-      const validation = await validateWorkflowCode(data.language || 'python', data.code || '');
-      if (!validation.ok) {
-        return sendJSON(res, 400, { error: validation.reason });
-      }
-      const wf = await addWorkflow({
-        templateId: data.template_id,
-        name: data.name,
-        description: data.description,
-        language: data.language || 'python',
-        code: data.code,
-        createdBy: apiUser.id,
-        isEnabled: data.is_enabled !== false,
-      });
-      return sendJSON(res, 200, wf);
-    } catch (e) {
-      return sendJSON(res, 400, { error: e.message });
-    }
-  }
-
-  if (url.pathname.startsWith('/api/workflows/') && (req.method === 'GET' || req.method === 'PUT' || req.method === 'DELETE')) {
-    const id = url.pathname.split('/').pop();
-    const parts = id.split('/');
-    const wfId = parts[0];
-    const subpath = parts.slice(1).join('/');
-
-    if (req.method === 'GET' && subpath === '') {
-      const apiUser = await authWithPerm(req, res, 'workflows.view');
-      if (!apiUser) return;
-      const wf = await getWorkflow(wfId);
-      if (!wf) return sendJSON(res, 404, { error: 'Not found' });
-      return sendJSON(res, 200, wf);
-    }
-
-    if (req.method === 'GET' && subpath === 'versions') {
-      const apiUser = await authWithPerm(req, res, 'workflows.view');
-      if (!apiUser) return;
-      const versions = await getWorkflowVersions(wfId);
-      return sendJSON(res, 200, versions);
-    }
-
-    if (req.method === 'GET' && subpath === 'executions') {
-      const apiUser = await authWithPerm(req, res, 'workflows.view');
-      if (!apiUser) return;
-      const limit = parseInt(url.searchParams.get('limit') || '50', 10);
-      const executions = await getWorkflowExecutions(wfId, limit);
-      return sendJSON(res, 200, executions);
-    }
-
-    if (req.method === 'POST' && subpath === 'dry-run') {
-      const apiUser = await authWithPerm(req, res, 'workflows.execute');
-      if (!apiUser) return;
-      const body = await readBodyText(req, 5 * 1024 * 1024);
-      try {
-        const data = JSON.parse(body);
-        const wf = await getWorkflow(wfId);
-        if (!wf) return sendJSON(res, 404, { error: 'Not found' });
-        const start = Date.now();
-        const result = await runWorkflow(wf.language, wf.code, data.sample || {});
-        const duration = Date.now() - start;
-        return sendJSON(res, 200, {
-          ok: result.ok,
-          result: result.result,
-          error: result.error,
-          duration_ms: duration,
-        });
-      } catch (e) {
-        return sendJSON(res, 400, { error: e.message });
-      }
-    }
-
-    if (req.method === 'PUT' && subpath === '') {
-      const apiUser = await authWithPerm(req, res, 'workflows.edit');
-      if (!apiUser) return;
-      const body = await readBodyText(req, 5 * 1024 * 1024);
-      try {
-        const data = JSON.parse(body);
-        if (data.code !== undefined) {
-          const validation = await validateWorkflowCode(data.language || 'python', data.code);
-          if (!validation.ok) {
-            return sendJSON(res, 400, { error: validation.reason });
-          }
-        }
-        const wf = await updateWorkflow(wfId, {
-          name: data.name,
-          description: data.description,
-          language: data.language,
-          code: data.code,
-          isEnabled: data.is_enabled,
-          createdBy: apiUser.id,
-        });
-        if (!wf) return sendJSON(res, 404, { error: 'Not found' });
-        return sendJSON(res, 200, wf);
-      } catch (e) {
-        return sendJSON(res, 400, { error: e.message });
-      }
-    }
-
-    if (req.method === 'DELETE' && subpath === '') {
-      const apiUser = await authWithPerm(req, res, 'workflows.delete');
-      if (!apiUser) return;
-      const ok = await deleteWorkflow(wfId);
-      return sendJSON(res, ok ? 200 : 404, ok ? { success: true } : { error: 'Not found' });
-    }
-
-    return sendJSON(res, 404, { error: 'Not found' });
   }
 
   if (url.pathname === '/api/schema/generate' && req.method === 'POST') {
