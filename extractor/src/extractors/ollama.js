@@ -2,9 +2,11 @@ import OpenAI from "openai";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { jsonrepair } from "jsonrepair";
 
-// Local models (via Ollama) don't reliably honour a structured-output schema,
-// so we mirror the Gemini fallback: request a JSON object and embed a compact
-// schema outline in the system prompt, then parse + jsonrepair the result.
+// Local models (via Ollama) support structured output through the OpenAI-compat
+// endpoint's `json_schema` response_format (Ollama >= 0.5). We enforce the schema
+// there so the model cannot return fields outside the configured schema — the same
+// guarantee Gemini gets from `responseSchema`. The prompt outline below is kept as
+// a reinforcement, and we fall back to plain JSON mode if a schema is rejected.
 
 const schemaOutline = (schema, indent = "") => {
   if (!schema || typeof schema !== "object") return "any";
@@ -34,16 +36,31 @@ export const ollamaExtractor = async ({ markdown, zodSchema, prompt, model, repa
   const jsonSchema = zodToJsonSchema(zodSchema, { $refStrategy: "none", target: "openApi3" });
   const effectivePrompt = `${prompt}\n\nOUTPUT SCHEMA (return JSON matching this exactly — every field MUST appear, arrays as arrays, objects as objects):\n{\n${schemaOutline(jsonSchema)}\n}\n\nReturn ONLY valid JSON. No markdown fences, no commentary.`;
 
-  const completion = await openai.chat.completions.create({
-    model,
-    messages: [
-      { role: "system", content: effectivePrompt },
-      { role: "user", content: markdown },
-    ],
-    response_format: { type: "json_object" },
-    temperature: 0,
-    max_tokens: maxOutputTokens,
-  });
+  const messages = [
+    { role: "system", content: effectivePrompt },
+    { role: "user", content: markdown },
+  ];
+
+  let completion;
+  try {
+    completion = await openai.chat.completions.create({
+      model,
+      messages,
+      response_format: { type: "json_schema", json_schema: { name: "documind", schema: jsonSchema, strict: true } },
+      temperature: 0,
+      max_tokens: maxOutputTokens,
+    });
+  } catch (err) {
+    // Older Ollama, or a schema it can't enforce: fall back to plain JSON mode.
+    console.warn(`[ollama] structured output rejected (${err?.message || err}) — falling back to json_object`);
+    completion = await openai.chat.completions.create({
+      model,
+      messages,
+      response_format: { type: "json_object" },
+      temperature: 0,
+      max_tokens: maxOutputTokens,
+    });
+  }
 
   const responseText = completion.choices?.[0]?.message?.content || '';
   let event;
