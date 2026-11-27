@@ -2246,6 +2246,9 @@ async function convertDocument({ filePath, model, concurrency = 6, jobId }) {
     }
     setStatusMessage(jobId, 'Attempt 2 of 2 — enhanced VLM');
   }
+  if (!isVisionCapableModel(model)) {
+    throw new Error(`"${model}" is text-only and can't read this document (no extractable text). For scanned/image PDFs, use a vision-capable model (Gemini, or install llama3.2-vision).`);
+  }
   const core = await documind({ filePath, model, concurrency });
   return { ...core, source: 'gemini', filePath, pymupdfMarkdown, pymupdfPages };
 }
