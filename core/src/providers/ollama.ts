@@ -13,10 +13,7 @@ export class Ollama implements Completion {
       priorPage,
     } = args;
 
-    const baseUrl = process.env.BASE_URL;
-    if (!baseUrl) {
-      throw new Error("Missing BASE_URL in environment variables.");
-    }
+    const baseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1";
 
     const validModels = Object.values(LocalModels); 
     if (!validModels.includes(model as LocalModels)) {

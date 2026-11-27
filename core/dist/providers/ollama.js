@@ -10,10 +10,7 @@ const utils_1 = require("../utils");
 class Ollama {
     async getCompletion(args) {
         const { imagePath, llmParams, maintainFormat, model, priorPage, } = args;
-        const baseUrl = process.env.BASE_URL;
-        if (!baseUrl) {
-            throw new Error("Missing BASE_URL in environment variables.");
-        }
+        const baseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1";
         const validModels = Object.values(types_1.LocalModels);
         if (!validModels.includes(model)) {
             throw new Error(`Model "${model}" is not a local model.`);
