@@ -976,7 +976,7 @@ async function runExtraction(coreResult, schemaUsed, model, opts = {}) {
     const arrLog = d => arraySchema.map(a => `${a.name}=${Array.isArray(d?.[a.name]) ? d[a.name].length : '?'}`).join(' ');
     console.info(`[finish] pre verifyTotals: ${arrLog(out)}`);
     if (opts.verifyTotals !== false) {
-      if (opts.jobId) setStatusMessage(opts.jobId, 'Verifying totals…');
+      if (opts.jobId) setStatusMessage(opts.jobId, 'Verifying…');
       const totalCheck = await verifyTotals(markdown, out, schemaUsed, model, stats, fullZod, extractPage, 2, { protectArrays });
       out = totalCheck.data;
       reconciled = totalCheck.reconciled;
@@ -996,7 +996,6 @@ async function runExtraction(coreResult, schemaUsed, model, opts = {}) {
     // for every schema with arrays (unless the per-page path already handled
     // coverage) so under-extraction is caught regardless of document layout.
     if (!skipGlobal && arraySchema.length > 0) {
-      if (opts.jobId) setStatusMessage(opts.jobId, 'Checking coverage…');
       const coverageCheck = await verifyCoverage(markdown, out, schemaUsed, model, stats, fullZod, extractPage);
       out = coverageCheck.data;
       coverageAdjusted = coverageAdjusted || coverageCheck.adjusted;
@@ -1950,7 +1949,7 @@ const server = createServer(async (req, res) => {
             filePaths.push(tmpPath);
           }
 
-          setStatusMessage(jobId, 'Converting document to markdown…');
+          setStatusMessage(jobId, 'Parsing…');
           const coreResult0 = applyPageRange(await convertDocuments({ filePaths, fileNames: uploads.map(f => f.filename), model, concurrency: 6, jobId }), fields.pages);
           jobs.set(jobId, { ...jobs.get(jobId), totalPages: coreResult0.pages.length, userId: user.id });
 
@@ -2132,7 +2131,7 @@ async function startAsyncPipeline(jobId, files, fields, apiUser, model, opts = {
 
   (async () => {
     try {
-      if (!reuseCore) setStatusMessage(jobId, 'Converting document to markdown…');
+      if (!reuseCore) setStatusMessage(jobId, 'Parsing…');
       const coreRes0 = reuseCore || applyPageRange(await convertDocuments({ filePaths, fileNames: uploads.map(f => f.filename), model, concurrency: 6, jobId }), fields.pages);
       let coreRes = coreRes0;
       let md = null;
@@ -2240,7 +2239,7 @@ async function convertDocument({ filePath, model, concurrency = 6, jobId }) {
       const { result, elapsed } = await runPymupdf(filePath);
       if (result.usable && Array.isArray(result.pages) && result.pages.length) {
         const md = result.pages.join('\n\n');
-        setStatusMessage(jobId, 'Attempt 1 of 2');
+        setStatusMessage(jobId, 'Parsing…');
         return {
           completionTime: elapsed,
           fileName: sanitizeFileName(filePath),
@@ -2257,7 +2256,7 @@ async function convertDocument({ filePath, model, concurrency = 6, jobId }) {
     } catch (e) {
       console.warn('[pymupdf] fast path unavailable; using enhanced VLM:', e.message);
     }
-    setStatusMessage(jobId, 'Attempt 2 of 2 — enhanced VLM');
+    setStatusMessage(jobId, 'Parsing…');
   }
   if (!isVisionCapableModel(model)) {
     throw new Error(`"${model}" is text-only and can't read this document (no extractable text). For scanned/image PDFs, use a vision-capable model (Gemini, or install llama3.2-vision).`);
@@ -2373,7 +2372,7 @@ async function runExtractionWithFallback(coreResult, schemaUsed, model, opts = {
   if (jobId) opts = { ...opts, jobId };
   if (coreResult.source === 'pymupdf') {
     try {
-      setStatusMessage(jobId, 'Extracting data…');
+      setStatusMessage(jobId, 'Extracting…');
       const res = await runExtraction(coreResult, schemaUsed, model, opts);
       if (hasExtractedData(res.data)) return { ...res, source: 'pymupdf', coreResult };
       console.warn('[pymupdf] extraction returned no data; retrying with enhanced VLM.');
@@ -2383,12 +2382,12 @@ async function runExtractionWithFallback(coreResult, schemaUsed, model, opts = {
     if (!isVisionCapableModel(model)) {
       throw new Error(`"${model}" extracted no data and is text-only, so the vision fallback can't run. If the document is a scanned/image PDF, switch to a vision-capable model (Gemini, or install llama3.2-vision).`);
     }
-    setStatusMessage(jobId, 'Attempt 2 of 2 — enhanced VLM');
+    setStatusMessage(jobId, 'Parsing…');
     const vlmCore = await convertFilesVLM({ filePaths: coreResult.filePaths || [coreResult.filePath], fileNames: coreResult.fileNames || null, model, concurrency: 6, jobId });
     const res = await runExtraction(vlmCore, schemaUsed, model, opts);
     return { ...res, source: 'gemini', coreResult: vlmCore };
   }
-  setStatusMessage(jobId, 'Extracting data…');
+  setStatusMessage(jobId, 'Extracting…');
   const res = await runExtraction(coreResult, schemaUsed, model, opts);
   return { ...res, source: coreResult.source || 'gemini', coreResult };
 }
