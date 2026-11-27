@@ -1016,6 +1016,8 @@ async function runExtraction(coreResult, schemaUsed, model, opts = {}) {
     return { data: out, reconciled, coverageAdjusted, coverageGap, usage: { inputTokens: stats.inputTokens, outputTokens: stats.outputTokens, calls: stats.calls || 0 }, time: stats.time };
   };
 
+  const coverageInfo = { skipGlobal: !opts.verifyCoverage, preAdjusted: false, gap: null };
+
   if (pages.length <= 20 && !opts.perPage) {
     const totalRowsOf = data => arraySchema.reduce((s, a) => s + (Array.isArray(data?.[a.name]) ? data[a.name].length : 0), 0);
     const minRows = pages.length >= 6 ? 5 : 0;
@@ -1037,7 +1039,7 @@ async function runExtraction(coreResult, schemaUsed, model, opts = {}) {
       }
     }
     if (best) {
-      if (minRows === 0 || bestRows >= minRows) return await finish(best);
+      if (minRows === 0 || bestRows >= minRows) return await finish(best, coverageInfo);
       console.info(`[extraction] best single-call produced ${bestRows} array rows (min ${minRows}) — falling back to per-page.`);
     } else {
       console.info('[extraction] single-call extraction failed — falling back to per-page.');
@@ -1088,8 +1090,6 @@ async function runExtraction(coreResult, schemaUsed, model, opts = {}) {
   // ONE global row-count and (only on mismatch) ONE repair re-extraction. This
   // replaces the old per-page count+repair loop, which added two model calls per
   // page and inflated extraction time on multi-page documents.
-  const coverageInfo = { skipGlobal: !opts.verifyCoverage, preAdjusted: false, gap: null };
-
   return await finish(merged, coverageInfo);
 }
 

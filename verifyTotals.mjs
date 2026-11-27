@@ -300,7 +300,11 @@ export async function verifyCoverage(markdown, data, schemaUsed, model, stats, f
     for (const a of arrays) {
       const extracted = Array.isArray(getAt(current, a.name)) ? getAt(current, a.name).length : 0;
       const counted = counts[a.name];
-      if (typeof counted !== 'number') continue;
+      // A record count must be a non-negative integer of plausible size. The
+      // count-pass LLM sometimes misreads "count the records" and returns the
+      // document's total amount (e.g. 54229.32) instead of a row count — treat
+      // that as "unavailable" so we never re-extract on a bogus count.
+      if (typeof counted !== 'number' || !Number.isInteger(counted) || counted < 0 || counted > 10000) continue;
       console.info(`[verifyCoverage] array=${a.name} extracted=${extracted} counted=${counted}`);
       if (Math.abs(extracted - counted) > COVERAGE_TOLERANCE) {
         lines.push(`- ${a.name}: expected ${counted} record(s), extracted ${extracted}.`);
@@ -454,7 +458,7 @@ export async function verifyCoveragePerPage(inputs, arrayResults, arrays, model,
     for (const a of arrays) {
       const extracted = Array.isArray(arrayResults[i].data?.[a.name]) ? arrayResults[i].data[a.name].length : 0;
       const counted = counts[a.name];
-      if (typeof counted !== 'number' || extracted === counted) continue;
+      if (typeof counted !== 'number' || !Number.isInteger(counted) || counted < 0 || counted > 10000 || extracted === counted) continue;
       console.info(`[verifyCoverage] page ${i + 1}: array=${a.name} extracted=${extracted} counted=${counted}`);
       lines.push(`- ${a.name}: expected ${counted} record(s), extracted ${extracted}.`);
     }
