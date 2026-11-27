@@ -15,7 +15,7 @@ import 'dotenv/config';
 import { documind } from 'core';
 import { generateMarkdownDocument } from './extractor/src/utils/generateMarkdown.js';
 import { convertToZodSchema } from './extractor/src/utils/convertToZodSchema.js';
-import { getExtractor } from './extractor/src/extractors/index.js';
+import { getExtractor, OpenAIModels, GoogleModels } from './extractor/src/extractors/index.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { BASE_EXTRACTION_PROMPT } from './extractor/src/prompts.js';
 import { verifyTotals, verifyCoverage, applyTotalFromItems } from './verifyTotals.mjs';
@@ -2345,6 +2345,14 @@ function hasExtractedData(data) {
   );
 }
 
+// The enhanced-VLM (vision) fallback can only run on vision-capable models:
+// Gemini (all), OpenAI vision models, and the local llama3.2-vision. Text-only
+// local models (phi4-mini, mistral, gemma4, qwen3-coder) would crash in the
+// core module with "No provider found" — so skip it for them.
+function isVisionCapableModel(model) {
+  return OpenAIModels.includes(model) || GoogleModels.includes(model) || model === 'llama3.2-vision';
+}
+
 async function runExtractionWithFallback(coreResult, schemaUsed, model, opts = {}, jobId) {
   if (coreResult.source === 'pymupdf') {
     try {
@@ -2353,6 +2361,9 @@ async function runExtractionWithFallback(coreResult, schemaUsed, model, opts = {
       console.warn('[pymupdf] extraction returned no data; retrying with enhanced VLM.');
     } catch (e) {
       console.warn('[pymupdf] extraction failed; retrying with enhanced VLM:', e.message);
+    }
+    if (!isVisionCapableModel(model)) {
+      throw new Error(`"${model}" extracted no data and is text-only, so the vision fallback can't run. If the document is a scanned/image PDF, switch to a vision-capable model (Gemini, or install llama3.2-vision).`);
     }
     setStatusMessage(jobId, 'Attempt 2 of 2 — enhanced VLM');
     const vlmCore = await convertFilesVLM({ filePaths: coreResult.filePaths || [coreResult.filePath], fileNames: coreResult.fileNames || null, model, concurrency: 6, jobId });
