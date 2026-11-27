@@ -151,6 +151,13 @@ const MIME = {
 const jobs = new Map();
 const schemaJobs = new Map();
 
+function setStatusMessage(jobId, message) {
+  if (!jobId) return;
+  const cur = jobs.get(jobId);
+  if (cur) jobs.set(jobId, { ...cur, statusMessage: message });
+  if (message) updateJob(jobId, { statusMessage: message }).catch(() => {});
+}
+
 async function persistJobFiles(jobId, files) {
   return putJobFiles(jobId, files);
 }
@@ -2199,13 +2206,6 @@ async function quickPageCount(filePath) {
     ]);
     return parseInt(stdout.trim(), 10) || 0;
   } catch { return 0; }
-}
-
-function setStatusMessage(jobId, message) {
-  if (!jobId) return;
-  const cur = jobs.get(jobId);
-  if (cur) jobs.set(jobId, { ...cur, statusMessage: message });
-  if (message) updateJob(jobId, { statusMessage: message }).catch(() => {});
 }
 
 async function runPymupdf(filePath) {
