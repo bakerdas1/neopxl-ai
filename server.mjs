@@ -1605,8 +1605,14 @@ const server = createServer(async (req, res) => {
     if (job.additionalPrompt) fields.additional_prompt = job.additionalPrompt;
 
     const model = getModel();
+    // Reuse the previous conversion (markdown) so the rerun skips PDF→markdown.
+    let reuseCore = null;
+    try {
+      const prev = job.resultData ? (typeof job.resultData === 'string' ? JSON.parse(job.resultData) : job.resultData) : null;
+      if (prev && prev.core && Array.isArray(prev.core.pages) && prev.core.pages.length) reuseCore = prev.core;
+    } catch (e) { reuseCore = null; }
     const newJobId = crypto.randomBytes(8).toString('hex');
-    const started = await startAsyncPipeline(newJobId, rerunFiles, fields, user, model);
+    const started = await startAsyncPipeline(newJobId, rerunFiles, fields, user, model, { reuseCore, uploadStartTs: Date.now() });
     return sendJSON(res, 200, { jobId: newJobId, rerunOf: taskId, ...started });
   }
 
@@ -1902,6 +1908,7 @@ const server = createServer(async (req, res) => {
       const boundary = getBoundary(req.headers['content-type']);
       if (!boundary) return sendJSON(res, 400, { error: 'No boundary' });
 
+      const uploadStart = Date.now();
       const buf = await readBodyBuffer(req, MAX_BODY_SIZE);
       const { files, fields } = parseMultipartBuffer(buf, boundary);
 
@@ -1977,7 +1984,7 @@ const server = createServer(async (req, res) => {
 
             const meta = {
               pages: coreResult.pages.length,
-              timing: { total: Date.now() - wallStart, conversion: conversionUsage.timeMs, extraction: extractionTime },
+              timing: { total: Date.now() - wallStart, upload: Math.max(0, wallStart - uploadStart), conversion: conversionUsage.timeMs, extraction: extractionTime },
               tokens: { conversion: { input: conversionUsage.inputTokens, output: conversionUsage.outputTokens }, extraction: { input: extractUsage.inputTokens || 0, output: extractUsage.outputTokens || 0 }, total: { input: totalInput, output: totalOutput } },
               cost: { total: +cost.toFixed(6), inputPricePerM: 0.15, outputPricePerM: 0.60, currency: 'USD' },
               ...(reconciled ? { reconciledTotals: true } : {}),
@@ -2087,7 +2094,9 @@ async function parseSchema(fields) {
   return { schemaUsed, filterUsed, verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain, mixedCharges, additionalPrompt, dropSummaryRows };
 }
 
-async function startAsyncPipeline(jobId, files, fields, apiUser, model) {
+async function startAsyncPipeline(jobId, files, fields, apiUser, model, opts = {}) {
+  const reuseCore = opts.reuseCore || null;
+  const uploadStartTs = opts.uploadStartTs || null;
   const { schemaUsed, filterUsed, verifyCoverage, verifyTotals, perPage, dateFormat, dateInputFormat, domain, mixedCharges, additionalPrompt, dropSummaryRows } = await parseSchema(fields);
   const tplId = (fields.template_id || fields.template || '').trim();
   let tplName = tplId || null;
@@ -2120,7 +2129,7 @@ async function startAsyncPipeline(jobId, files, fields, apiUser, model) {
 
   (async () => {
     try {
-      const coreRes0 = applyPageRange(await convertDocuments({ filePaths, fileNames: uploads.map(f => f.filename), model, concurrency: 6, jobId }), fields.pages);
+      const coreRes0 = reuseCore || applyPageRange(await convertDocuments({ filePaths, fileNames: uploads.map(f => f.filename), model, concurrency: 6, jobId }), fields.pages);
       let coreRes = coreRes0;
       let md = null;
 
@@ -2151,7 +2160,7 @@ async function startAsyncPipeline(jobId, files, fields, apiUser, model) {
 
         const meta = {
           pages: coreRes.pages.length,
-          timing: { total: Date.now() - wallStart, conversion: convUsage.timeMs, extraction: extTime },
+          timing: { total: Date.now() - wallStart, upload: uploadStartTs ? Math.max(0, wallStart - uploadStartTs) : 0, conversion: reuseCore ? 0 : convUsage.timeMs, extraction: extTime },
           tokens: { conversion: { input: convUsage.inputTokens, output: convUsage.outputTokens }, extraction: { input: extUsage.inputTokens || 0, output: extUsage.outputTokens || 0 }, total: { input: tIn, output: tOut } },
           cost: { total: +(tIn * INPUT_PRICE + tOut * OUTPUT_PRICE).toFixed(6), inputPricePerM: 0.15, outputPricePerM: 0.60, currency: 'USD' },
           ...(reconciled ? { reconciledTotals: true } : {}),
@@ -2161,7 +2170,7 @@ async function startAsyncPipeline(jobId, files, fields, apiUser, model) {
         };
         const flags = { ...(reconciled ? { reconciledTotals: true } : {}), ...(coverageAdjusted ? { coverageAdjusted: true } : {}), ...(coverageGap ? { coverageGap } : {}), ...(summaryRowsDropped ? { summaryRowsDropped } : {}) };
         jobs.set(jobId, { status: 'done', meta, data: { success: true, data: filtered, markdown: md, fileName: coreRes.fileName, ...flags }, userId: apiUser.id });
-        await updateJob(jobId, { status: 'done', pages: coreRes.pages.length, timing: meta.timing, tokens: meta.tokens, cost: meta.cost, geminiCalls: coreRes.source === 'pymupdf' ? (extUsage.calls || 0) : coreRes.pages.length + (extUsage.calls || 1), resultData: { success: true, data: filtered, markdown: md, fileName: coreRes.fileName, ...flags } });
+        await updateJob(jobId, { status: 'done', pages: coreRes.pages.length, timing: meta.timing, tokens: meta.tokens, cost: meta.cost, geminiCalls: coreRes.source === 'pymupdf' ? (extUsage.calls || 0) : coreRes.pages.length + (extUsage.calls || 1), resultData: { success: true, data: filtered, markdown: md, fileName: coreRes.fileName, core: { pages: coreRes.pages, source: coreRes.source, pymupdfMarkdown: coreRes.pymupdfMarkdown, fileName: coreRes.fileName, filePaths: coreRes.filePaths || null, fileNames: coreRes.fileNames || null }, ...flags } });
       }
     } catch (err) {
       console.error(err);
@@ -2453,6 +2462,7 @@ function checkAuth(req, res) {
       const boundary = getBoundary(req.headers['content-type']);
       if (!boundary) return sendJSON(res, 400, { error: 'No boundary' });
 
+      const uploadStart = Date.now();
       const buf = await readBodyBuffer(req, MAX_BODY_SIZE);
       const { files, fields } = parseMultipartBuffer(buf, boundary);
 
@@ -2471,7 +2481,7 @@ function checkAuth(req, res) {
 
       if (isAsync) {
         const jobId = crypto.randomBytes(8).toString('hex');
-        const started = await startAsyncPipeline(jobId, uploads, fields, apiUser, model);
+        const started = await startAsyncPipeline(jobId, uploads, fields, apiUser, model, { uploadStartTs: uploadStart });
         return sendJSON(res, 200, { jobId, ...started });
       }
 
@@ -2519,7 +2529,7 @@ function checkAuth(req, res) {
 
         output = {
           success: true, pages: coreResult.pages.length, data: filteredData, fileName: coreResult.fileName,
-          timing: { total: Date.now() - wallStart, conversion: conversionUsage.timeMs, extraction: extractionTime },
+          timing: { total: Date.now() - wallStart, upload: Math.max(0, wallStart - uploadStart), conversion: conversionUsage.timeMs, extraction: extractionTime },
           tokens: { conversion: { input: conversionUsage.inputTokens, output: conversionUsage.outputTokens }, extraction: { input: extractUsage.inputTokens || 0, output: extractUsage.outputTokens || 0 }, total: { input: totalInput, output: totalOutput } },
           cost: { total: +cost.toFixed(6), inputPricePerM: 0.15, outputPricePerM: 0.60, currency: 'USD' },
           ...(reconciled ? { reconciledTotals: true } : {}),

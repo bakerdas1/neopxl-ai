@@ -24,6 +24,14 @@
 .stat-card { padding: var(--spacing-md); }
 .stat-card .stat-label { font-size: 11px; color: var(--steel); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 4px; }
 .stat-card .stat-value { font-size: 22px; font-weight: 700; }
+.stat-card-clickable { cursor: pointer; }
+.stat-card-clickable:hover { box-shadow: var(--shadow-card-hover); }
+.timing-donut-wrap { display: flex; align-items: center; gap: var(--spacing-lg); margin-top: var(--spacing-md); }
+.timing-legend { display: flex; flex-direction: column; gap: var(--spacing-sm); flex: 1; min-width: 0; }
+.timing-legend-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.timing-legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.timing-legend-name { flex: 1; color: var(--slate); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.timing-legend-val { font-weight: 600; white-space: nowrap; }
 .detail-meta { display: flex; flex-direction: column; gap: 0; }
 .detail-meta-row { display: flex; justify-content: space-between; gap: var(--spacing-md); padding: 8px 0; border-bottom: 1px solid var(--hairline-soft); font-size: 13px; }
 .detail-meta-row:last-child { border-bottom: none; }
@@ -83,7 +91,7 @@
     <div class="settings-tab-content active" id="tab-details">
       <div class="stats-grid">
         <div class="stat-card"><div class="stat-label">Extracted Pages</div><div class="stat-value" id="statPages">—</div></div>
-        <div class="stat-card"><div class="stat-label">Time</div><div class="stat-value" id="statTime">—</div></div>
+        <div class="stat-card stat-card-clickable" onclick="showTimingChart()" title="View timing breakdown"><div class="stat-label">Time</div><div class="stat-value" id="statTime">—</div></div>
         <div class="stat-card"><div class="stat-label">Cost</div><div class="stat-value" id="statCost">—</div></div>
         <div class="stat-card"><div class="stat-label">Calls</div><div class="stat-value" id="statCalls">—</div></div>
       </div>
@@ -138,6 +146,14 @@
       <button class="btn btn-primary" id="confirmRerunBtn" onclick="confirmRerun()">Re-run</button>
       <button class="btn btn-secondary" onclick="closeRerunModal()">Cancel</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="timingModalOverlay">
+  <div class="modal" style="max-width:440px">
+    <button class="modal-close" onclick="closeTimingModal()">×</button>
+    <h3>Timing breakdown</h3>
+    <div class="timing-donut-wrap" id="timingDonut"></div>
   </div>
 </div>
 
@@ -523,11 +539,53 @@ function closeRerunModal() {
   document.getElementById('rerunModalOverlay').style.display = 'none';
 }
 
+function closeTimingModal() {
+  document.getElementById('timingModalOverlay').style.display = 'none';
+}
+
+function showTimingChart() {
+  const t = taskJob?.timing || {};
+  const total = Number(t.total) || 0;
+  if (!total) return;
+  const conversion = Number(t.conversion) || 0;
+  const extraction = Number(t.extraction) || 0;
+  const upload = (t.upload !== undefined && t.upload !== null)
+    ? Number(t.upload)
+    : Math.max(0, total - conversion - extraction);
+
+  const segments = [
+    { name: 'Upload', value: upload, color: '#889397' },
+    { name: 'PDF → Markdown', value: conversion, color: '#B07600' },
+    { name: 'Extraction', value: extraction, color: '#00ED64' },
+  ].filter(s => s.value > 0);
+
+  const R = 56, SW = 22, C = 2 * Math.PI * R;
+  let offset = 0;
+  let arcs = `<circle cx="72" cy="72" r="${R}" fill="none" stroke="var(--surface-soft)" stroke-width="${SW}"/>`;
+  for (const s of segments) {
+    const frac = Math.min(1, s.value / total);
+    arcs += `<circle cx="72" cy="72" r="${R}" fill="none" stroke="${s.color}" stroke-width="${SW}" stroke-dasharray="${(frac * C).toFixed(2)} ${C.toFixed(2)}" stroke-dashoffset="${(-offset * C).toFixed(2)}" transform="rotate(-90 72 72)"/>`;
+    offset += frac;
+  }
+  const svg = `<svg viewBox="0 0 144 144" style="width:144px;height:144px;flex-shrink:0">${arcs}<text x="72" y="68" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor">${fmtDuration(total)}</text><text x="72" y="84" text-anchor="middle" font-size="10" fill="var(--steel)">total</text></svg>`;
+
+  const legend = `<div class="timing-legend">${segments.map(s => {
+    const pct = ((s.value / total) * 100).toFixed(1);
+    return `<div class="timing-legend-row"><span class="timing-legend-dot" style="background:${s.color}"></span><span class="timing-legend-name">${s.name}</span><span class="timing-legend-val">${fmtDuration(s.value)} (${pct}%)</span></div>`;
+  }).join('')}</div>`;
+
+  document.getElementById('timingDonut').innerHTML = svg + legend;
+  document.getElementById('timingModalOverlay').style.display = 'flex';
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const back = document.getElementById('backLink');
   if (back) back.href = tasksBackUrl();
   document.getElementById('rerunModalOverlay').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeRerunModal();
+  });
+  document.getElementById('timingModalOverlay').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeTimingModal();
   });
 });
 
@@ -548,7 +606,7 @@ function openRerunModal() {
     (taskJob.filter ? 'Filter: <b>applied</b><br>' : '') +
     '</div>' +
     '<div style="margin-top:var(--spacing-md);padding:var(--spacing-md);background:var(--surface);border-radius:var(--rounded-md);font-size:13px;color:var(--slate)">' +
-    'A new task will be created that reuses the original file and runs the full extraction again. This takes time and incurs Gemini API costs.' +
+    'A new task will be created that reuses the original file and the previous conversion (markdown), then runs the extraction again. This incurs model costs.' +
     '</div>';
   document.getElementById('rerunModalOverlay').style.display = 'flex';
 }
