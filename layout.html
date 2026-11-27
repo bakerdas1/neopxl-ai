@@ -72,7 +72,14 @@ body { font-family: var(--font-family); background: var(--surface); color: var(-
 .sidebar-theme:hover { background: rgba(255,255,255,0.12); color: var(--on-dark); }
 .sidebar-logout:hover { background: rgba(219,48,48,0.2); color: #FF6B6B; }
 .sidebar-logout svg, .sidebar-theme svg { width: 18px; height: 18px; }
-.main { margin-left: 260px; flex: 1; padding: var(--spacing-xl); animation: fadeIn 500ms ease-out; }
+.main { margin-left: 260px; flex: 1; padding: var(--spacing-xl); animation: fadeIn 500ms ease-out; transition: margin-left 220ms ease, padding-left 220ms ease; }
+.sidebar { transition: transform 220ms ease; }
+.sidebar-toggle { position: fixed; top: 12px; left: 12px; z-index: 40; width: 40px; height: 40px; border-radius: var(--rounded-md); background: var(--brand-teal-deep); color: var(--on-dark); border: 1px solid rgba(255,255,255,0.16); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.28); }
+.sidebar-toggle:hover { background: #003043; }
+.sidebar-toggle svg { width: 22px; height: 22px; }
+.sidebar-logo { padding-left: 60px; }
+body.sidebar-collapsed .sidebar { transform: translateX(-100%); box-shadow: none; }
+body.sidebar-collapsed .main { margin-left: 0; padding-left: 68px; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-lg); }
 .topbar h1 { font-size: 22px; font-weight: 600; }
@@ -301,7 +308,11 @@ function chipsToFilter(keepArr, dropArr) {
 </script>
 </head>
 <body>
+<script>try{if(localStorage.getItem('neopxl_sidebar')==='collapsed'||(!localStorage.getItem('neopxl_sidebar')&&window.innerWidth<=900))document.body.classList.add('sidebar-collapsed')}catch(e){}</script>
 <div class="app">
+  <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="Toggle sidebar" aria-label="Toggle sidebar">
+    <svg id="sidebarToggleIcon" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+  </button>
   <nav class="sidebar">
     <div class="sidebar-logo">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none"/><path d="M8 12h8M12 8v8"/></svg>
@@ -424,6 +435,19 @@ function toggleDevGroup() {
   s.style.display = open ? 'none' : 'block';
   g.classList.toggle('open', !open);
 }
+function toggleSidebar() {
+  document.body.classList.toggle('sidebar-collapsed');
+  try { localStorage.setItem('neopxl_sidebar', document.body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open'); } catch(e) {}
+  updateSidebarToggleIcon();
+}
+function updateSidebarToggleIcon() {
+  const icon = document.getElementById('sidebarToggleIcon');
+  if (!icon) return;
+  icon.innerHTML = document.body.classList.contains('sidebar-collapsed')
+    ? '<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>'
+    : '<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>';
+}
+updateSidebarToggleIcon();
 </script>
 <div class="modal-overlay" id="modalOverlay"><div class="modal" id="modalContent"></div></div>
 <script>document.getElementById('modalOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal()})</script>
