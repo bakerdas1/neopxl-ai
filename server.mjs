@@ -976,6 +976,7 @@ async function runExtraction(coreResult, schemaUsed, model, opts = {}) {
     const arrLog = d => arraySchema.map(a => `${a.name}=${Array.isArray(d?.[a.name]) ? d[a.name].length : '?'}`).join(' ');
     console.info(`[finish] pre verifyTotals: ${arrLog(out)}`);
     if (opts.verifyTotals !== false) {
+      if (opts.jobId) setStatusMessage(opts.jobId, 'Verifying totals…');
       const totalCheck = await verifyTotals(markdown, out, schemaUsed, model, stats, fullZod, extractPage, 2, { protectArrays });
       out = totalCheck.data;
       reconciled = totalCheck.reconciled;
@@ -995,6 +996,7 @@ async function runExtraction(coreResult, schemaUsed, model, opts = {}) {
     // for every schema with arrays (unless the per-page path already handled
     // coverage) so under-extraction is caught regardless of document layout.
     if (!skipGlobal && arraySchema.length > 0) {
+      if (opts.jobId) setStatusMessage(opts.jobId, 'Checking coverage…');
       const coverageCheck = await verifyCoverage(markdown, out, schemaUsed, model, stats, fullZod, extractPage);
       out = coverageCheck.data;
       coverageAdjusted = coverageAdjusted || coverageCheck.adjusted;
@@ -1948,6 +1950,7 @@ const server = createServer(async (req, res) => {
             filePaths.push(tmpPath);
           }
 
+          setStatusMessage(jobId, 'Converting document to markdown…');
           const coreResult0 = applyPageRange(await convertDocuments({ filePaths, fileNames: uploads.map(f => f.filename), model, concurrency: 6, jobId }), fields.pages);
           jobs.set(jobId, { ...jobs.get(jobId), totalPages: coreResult0.pages.length, userId: user.id });
 
@@ -2129,6 +2132,7 @@ async function startAsyncPipeline(jobId, files, fields, apiUser, model, opts = {
 
   (async () => {
     try {
+      if (!reuseCore) setStatusMessage(jobId, 'Converting document to markdown…');
       const coreRes0 = reuseCore || applyPageRange(await convertDocuments({ filePaths, fileNames: uploads.map(f => f.filename), model, concurrency: 6, jobId }), fields.pages);
       let coreRes = coreRes0;
       let md = null;
@@ -2366,8 +2370,10 @@ function isVisionCapableModel(model) {
 }
 
 async function runExtractionWithFallback(coreResult, schemaUsed, model, opts = {}, jobId) {
+  if (jobId) opts = { ...opts, jobId };
   if (coreResult.source === 'pymupdf') {
     try {
+      setStatusMessage(jobId, 'Extracting data…');
       const res = await runExtraction(coreResult, schemaUsed, model, opts);
       if (hasExtractedData(res.data)) return { ...res, source: 'pymupdf', coreResult };
       console.warn('[pymupdf] extraction returned no data; retrying with enhanced VLM.');
@@ -2382,6 +2388,7 @@ async function runExtractionWithFallback(coreResult, schemaUsed, model, opts = {
     const res = await runExtraction(vlmCore, schemaUsed, model, opts);
     return { ...res, source: 'gemini', coreResult: vlmCore };
   }
+  setStatusMessage(jobId, 'Extracting data…');
   const res = await runExtraction(coreResult, schemaUsed, model, opts);
   return { ...res, source: coreResult.source || 'gemini', coreResult };
 }

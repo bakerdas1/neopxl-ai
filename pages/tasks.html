@@ -476,7 +476,7 @@ function updateCard(card, job) {
   const statusEl = card.querySelector('.task-card-status');
   const newStatus = job.status === 'done' ? 'done' : job.status === 'error' ? 'error' : 'progress';
   const newClass = 'task-card-status ts-' + newStatus;
-  const label = job.status === 'in-progress' ? SPINNER_SVG : ((job.status !== 'done' && job.status !== 'error' && job.statusMessage ? job.statusMessage : job.status)).toUpperCase();
+  const label = job.status === 'in-progress' ? (SPINNER_SVG + '<span class="status-msg">' + esc(job.statusMessage || 'Processing…') + '</span>') : esc((job.status !== 'done' && job.status !== 'error' && job.statusMessage ? job.statusMessage : job.status).toUpperCase());
   if (statusEl.className !== newClass) statusEl.className = newClass;
   if (statusEl.innerHTML !== label) statusEl.innerHTML = label;
   const timeEl = card.querySelector('.task-card-meta-item:nth-child(2) strong');
@@ -547,7 +547,7 @@ function renderTaskCards(jobs) {
   if (!jobs || !jobs.length) return '';
   return jobs.map(j=>`
     <div class="task-card" data-job-id="${esc(j.id)}">
-      <div class="task-card-status ts-${j.status==='done'?'done':j.status==='error'?'error':'progress'}">${j.status==='in-progress'?SPINNER_SVG:esc((j.status!=='done'&&j.status!=='error'&&j.statusMessage?j.statusMessage:j.status).toUpperCase())}</div>
+      <div class="task-card-status ts-${j.status==='done'?'done':j.status==='error'?'error':'progress'}">${j.status==='in-progress'?SPINNER_SVG+'<span class="status-msg">'+esc(j.statusMessage||'Processing…')+'</span>':esc((j.status!=='done'&&j.status!=='error'&&j.statusMessage?j.statusMessage:j.status).toUpperCase())}</div>
       <div class="task-card-info">
         <div class="task-card-name"><a href="/tasks/${encodeURIComponent(j.id)}" title="${esc(j.fileName||'')}" style="color:inherit;text-decoration:none">${esc(j.fileName||'Untitled')}</a></div>
         <div class="task-card-id" style="color:var(--slate);font-family:var(--font-family);display:flex;align-items:center;gap:4px">

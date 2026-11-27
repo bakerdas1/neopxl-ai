@@ -178,7 +178,7 @@ else window.addEventListener('permsready', applyTaskDetailPerms);
 
 function updateTaskStatusBadge(status, statusMessage) {
   const st = document.getElementById('taskStatus');
-  const label = status === 'in-progress' ? SPINNER_SVG : ((status !== 'done' && status !== 'error' && statusMessage ? statusMessage : status)).toUpperCase();
+  const label = status === 'in-progress' ? (SPINNER_SVG + '<span class="status-msg">' + esc(statusMessage || 'Processing…') + '</span>') : esc((status !== 'done' && status !== 'error' && statusMessage ? statusMessage : status).toUpperCase());
   st.className = 'task-card-status ts-' + (status === 'done' ? 'done' : status === 'error' ? 'error' : 'progress');
   if (st.innerHTML !== label) st.innerHTML = label;
 }
