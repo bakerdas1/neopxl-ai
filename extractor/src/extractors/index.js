@@ -3,7 +3,7 @@ import { openAIExtractor } from "./openAI.js";
 import { googleExtractor } from "./google.js";
 
 export const OpenAIModels = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini"];
-export const LocalModels = ["qwen3-coder:latest", "qwen3:4b-q8_0", "qwen3:4b-q4_K_M", "gemma4:e4b", "mistral:7b", "phi4-mini:latest", "llama3.2:latest", "llama3.2-vision"];
+export const LocalModels = ["qwen3-coder:latest", "qwen3:4b-q8_0", "qwen3:4b-q4_K_M", "gemma4:e4b", "mistral:7b", "phi4-mini:latest"];
 export const GoogleModels = [
   "gemini-4-argon",
   "gemini-3.8-flash",
