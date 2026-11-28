@@ -937,7 +937,10 @@ async function extractPage(markdown, zodSchema, model, stats, prompt = getAiConf
   const extractor = getExtractor(model);
   const start = Date.now();
   const finalPrompt = extraPrompt ? `${prompt}\n\n${extraPrompt}` : prompt;
-  const result = await extractor({ markdown, zodSchema, prompt: finalPrompt, model, repairJson: true, maxOutputTokens: 131072 });
+  // NuExtract fills a fixed-size template; cap its output so the weaker 2B can't
+  // run away into a verbose, never-ending response (131072 let it grind 20+ min).
+  const maxOutputTokens = isNuExtractModel(model) ? 4096 : 131072;
+  const result = await extractor({ markdown, zodSchema, prompt: finalPrompt, model, repairJson: true, maxOutputTokens });
   const data = result?.data !== undefined ? result.data : result;
   const usage = result?.usage || {};
   stats.time += Date.now() - start;
