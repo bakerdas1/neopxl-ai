@@ -2221,6 +2221,20 @@ async function runPymupdf(filePath) {
   const { promisify } = await import('util');
   const execFileAsync = promisify(execFile);
   const start = Date.now();
+
+  // Primary: OCRia-nano-1 (LiteParse) — clean, table-structured markdown.
+  try {
+    const { stdout } = await execFileAsync('python3', [join(__dirname, 'ocria_to_markdown.py'), filePath], { maxBuffer: 512 * 1024 * 1024 });
+    const result = JSON.parse(stdout);
+    if (result && Array.isArray(result.pages) && result.pages.length) {
+      return { result, elapsed: Date.now() - start, parser: 'ocria' };
+    }
+    throw new Error('ocria produced no pages');
+  } catch (e) {
+    console.warn('[ocria] unavailable, falling back to pymupdf:', e.message);
+  }
+
+  // Fallback: pymupdf.
   const { stdout } = await execFileAsync('python3', [join(__dirname, 'pymupdf_to_markdown.py'), filePath], { maxBuffer: 512 * 1024 * 1024 });
   const firstBrace = stdout.indexOf('{');
   const lastBrace = stdout.lastIndexOf('}');
@@ -2229,7 +2243,7 @@ async function runPymupdf(filePath) {
   if (!result || !Array.isArray(result.pages) || result.pages.length === 0) {
     throw new Error('pymupdf produced no pages');
   }
-  return { result, elapsed: Date.now() - start };
+  return { result, elapsed: Date.now() - start, parser: 'pymupdf' };
 }
 
 function sanitizeFileName(filePath) {
