@@ -202,9 +202,13 @@ async function loadTask() {
   const terminal = status === 'done' || status === 'error';
 
   if (taskRendered && !terminal) {
-    // Silent refresh while still running: only update the status badge,
-    // leave the viewer and all panels untouched so nothing flickers.
+    // Silent refresh while still running: update the status badge and, once
+    // parsing has produced the markdown, surface it in the Markdown tab.
     updateTaskStatusBadge(status, job.statusMessage);
+    const mdEl = document.getElementById('markdownPre');
+    if (data && data.markdown && (mdEl.textContent === '(none)' || mdEl.textContent === 'Loading…')) {
+      mdEl.textContent = data.markdown;
+    }
     schedulePoll();
     return;
   }

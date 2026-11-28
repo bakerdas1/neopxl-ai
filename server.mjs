@@ -2152,10 +2152,15 @@ async function startAsyncPipeline(jobId, files, fields, apiUser, model, opts = {
       if (!reuseCore) setStatusMessage(jobId, 'Parsing…');
       const coreRes0 = reuseCore || applyPageRange(await convertDocuments({ filePaths, fileNames: uploads.map(f => f.filename), model, concurrency: 6, jobId }), fields.pages);
       let coreRes = coreRes0;
-      let md = null;
+      let md = coreRes.pymupdfMarkdown || await generateMarkdownDocument(coreRes.pages);
+
+      // Persist the parsed markdown immediately so the UI can display it while
+      // extraction is still running (instead of waiting for the whole job).
+      try {
+        await updateJob(jobId, { resultData: { success: true, markdown: md, fileName: coreRes.fileName } });
+      } catch (e) { console.error('[markdown] early persist failed', e.message); }
 
       if (!schemaUsed) {
-        md = coreRes.pymupdfMarkdown || await generateMarkdownDocument(coreRes.pages);
         const markdownData = { success: true, pages: coreRes.pages.length, markdown: md, fileName: coreRes.fileName };
         jobs.set(jobId, { status: 'done', meta: { pages: coreRes.pages.length }, data: markdownData, userId: apiUser.id });
         await updateJob(jobId, { status: 'done', pages: coreRes.pages.length, geminiCalls: coreRes.source === 'pymupdf' ? 0 : coreRes.pages.length, timing: { total: Date.now() - wallStart }, resultData: markdownData });
