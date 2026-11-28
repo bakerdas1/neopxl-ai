@@ -1622,7 +1622,9 @@ const server = createServer(async (req, res) => {
     // Reuse the previous conversion (markdown) so the rerun skips PDF→markdown.
     let reuseCore = null;
     try {
-      const prev = job.resultData ? (typeof job.resultData === 'string' ? JSON.parse(job.resultData) : job.resultData) : null;
+      // getJobs() doesn't select result_data, so fetch it directly.
+      const raw = await getJobResultData(taskId);
+      const prev = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : null;
       if (prev && prev.core && Array.isArray(prev.core.pages) && prev.core.pages.length) reuseCore = prev.core;
     } catch (e) { reuseCore = null; }
     const newJobId = crypto.randomBytes(8).toString('hex');
