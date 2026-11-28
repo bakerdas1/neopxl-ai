@@ -1,6 +1,7 @@
 import { ollamaExtractor } from "./ollama.js";
 import { openAIExtractor } from "./openAI.js";
 import { googleExtractor } from "./google.js";
+import { nuextractExtractor } from "./nuextract.js";
 
 export const OpenAIModels = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini"];
 export const LocalModels = ["qwen3-coder:latest", "qwen3:4b-q8_0", "qwen3:4b-q4_K_M", "gemma4:e4b", "mistral:7b", "phi4-mini:latest"];
@@ -18,7 +19,17 @@ export const GoogleModels = [
   "gemini-2.5-pro"
 ];
 
+// NuExtract models (purpose-built document→JSON extractors) are detected by
+// name rather than listed exhaustively, since they're pulled via hf.co/ tags.
+export function isNuExtractModel(model) {
+  return typeof model === "string" && /nuextract/i.test(model);
+}
+
 export function getExtractor(model) {
+  if (isNuExtractModel(model)) {
+    return nuextractExtractor;
+  }
+
   if (OpenAIModels.includes(model)) {
     return openAIExtractor;
   }

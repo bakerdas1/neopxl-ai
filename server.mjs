@@ -15,7 +15,7 @@ import 'dotenv/config';
 import { documind } from 'core';
 import { generateMarkdownDocument } from './extractor/src/utils/generateMarkdown.js';
 import { convertToZodSchema } from './extractor/src/utils/convertToZodSchema.js';
-import { getExtractor, OpenAIModels, GoogleModels } from './extractor/src/extractors/index.js';
+import { getExtractor, OpenAIModels, GoogleModels, isNuExtractModel } from './extractor/src/extractors/index.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { BASE_EXTRACTION_PROMPT } from './extractor/src/prompts.js';
 import { verifyTotals, verifyCoverage, applyTotalFromItems } from './verifyTotals.mjs';
@@ -948,6 +948,12 @@ async function extractPage(markdown, zodSchema, model, stats, prompt = getAiConf
 }
 
 async function runExtraction(coreResult, schemaUsed, model, opts = {}) {
+  // NuExtract is a single-pass, purpose-built extractor — skip the totals/coverage
+  // verification passes (their generic re-extraction prompts don't match NuExtract's
+  // template format, and NuExtract is trained to extract correctly in one pass).
+  if (isNuExtractModel(model)) {
+    opts = { ...opts, verifyTotals: false, verifyCoverage: false };
+  }
   const pages = coreResult.pages;
   const fullZod = convertToZodSchema(schemaUsed);
   const arraySchema = arraySchemaOnly(schemaUsed);
